@@ -310,7 +310,7 @@ def build_cases(world: World, rng: random.Random):
             {"period": [p, p], "answer_by_vendor": per, "min_tool_calls": 10},
             ["grounded", "format"], ["D05"])
 
-    # dev / holdout 분리: kind 안에서 결정적 해시로 반반. holdout은 사람이 관리하는 판정용 (PRD v0.3 5장)
+    # pool: 가짜 운영 트래픽이 요청을 뽑는 풀(dev)과 아닌 풀. 판정 분할(held-out)은 sel.split_golden이 노출 원장으로 따로 한다 (PRD v0.7 5장)
     for c in cases:
         c["pool"] = "holdout" if int(stable_id(c["eval_case_id"]), 16) % 2 else "dev"
     return cases

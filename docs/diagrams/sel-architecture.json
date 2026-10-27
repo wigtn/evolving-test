@@ -1,11 +1,11 @@
 {
   "title": "SEL · Agent Runtime VM 안의 평가·개선 루프",
-  "subtitle": "업무 에이전트 실행 → Collector가 정본·사본 적재 · 스케줄러가 깨우면 분석기가 원천을 조회(pull) · 사람 개입은 최종 승인(Admin UI) 하나 · 점선 = 미결·조건부",
+  "subtitle": "Business·Personal 업무는 프론티어 도구(운영 trace 없음) · 계측은 별도 VM의 Phoenix로 직접(Collector 없음, 10-28 팀 의견) · 스케줄러가 깨우면 분석기가 원천을 조회(pull) · 사람 개입은 최종 승인 하나 · 점선 = 미결·조건부",
   "direction": "DOWN",
   "groups": [
     {
       "id": "up",
-      "label": "실행 · 수집 (업무 영역 · 트레이싱 팀)",
+      "label": "실행 · 수집 (프론티어 도구 · 트레이싱 팀)",
       "tone": "green"
     },
     {
@@ -30,43 +30,37 @@
   "nodes": [
     {
       "id": "bizagent",
-      "label": "Business · Personal 에이전트",
-      "sub": "Aegra Runtime 실행 · 존재 여부 Q7",
-      "group": "up",
-      "shape": "actor"
+      "label": "Runtime · 게이트 계측",
+      "sub": "평가·재현 실행 span · 게이트 span\nSDK에서 등급별 내용 제거 후 전송\n운영 업무 trace 없음 (Q7)",
+      "group": "up"
     },
     {
       "id": "frontier",
       "label": "프론티어 도구",
-      "sub": "OpenAI Dots · OTel 미제공",
+      "sub": "OpenAI Dots · Business·Personal 업무\nOTel 미제공 · 자산·도구는 우리 게이트 경유",
       "group": "up",
       "shape": "external"
     },
     {
-      "id": "collector",
-      "label": "OTel Collector",
-      "sub": "정본·사본 두 갈래 · 등급별 내용 제거",
-      "group": "up"
-    },
-    {
       "id": "ard",
       "label": "ARD 실행 기록 정본",
-      "sub": "운영 trace 유무 Q7 · Q6",
+      "sub": "Collector 없음 → 적재 경로 미정 (Q9)",
       "group": "src",
       "shape": "db",
-      "tone": "gray"
+      "tone": "gray",
+      "dashed": true
     },
     {
       "id": "phoenix",
-      "label": "Phoenix 사본",
-      "sub": "1·2등급·미표시는 구조만\n3등급은 마스킹본 · 타 팀",
+      "label": "Phoenix (별도 VM)",
+      "sub": "OTLP 직접 수신 · 트레이싱 팀\n1·2등급·미표시는 구조만 · 3등급 마스킹\n= v0 실행 기록 원천",
       "group": "src",
-      "shape": "external"
+      "tone": "gray"
     },
     {
       "id": "session",
       "label": "세션 기록 · 사용 원장",
-      "sub": "세션 요약 · 게이트 호출 기록 (우리 팀 게이트가 기록)",
+      "sub": "세션 요약(제공 시) · 게이트 사용 원장·감사 기록\n= 운영 신호의 전부 (gateway · action)",
       "group": "src",
       "shape": "db",
       "tone": "gray"
@@ -81,7 +75,7 @@
     {
       "id": "front",
       "label": "Creator 앞단 · 폴백 분석기",
-      "sub": "원천 조회 → R1–R8 집계 → finding",
+      "sub": "원천 조회 → R1–R3·R5·R7 집계 → finding",
       "group": "vm"
     },
     {
@@ -94,7 +88,7 @@
     {
       "id": "fence",
       "label": "증거 구획",
-      "sub": "증거는 데이터로만 · 외부 입력 필드 표시\n지시문·URL 탐지 (인젝션 차단)",
+      "sub": "외부 텍스트는 데이터로만 · 필드 기본 거부\n노출 원장 기록 (본 사례는 dev로)",
       "group": "vm",
       "tone": "red",
       "emphasis": true
@@ -123,7 +117,7 @@
     {
       "id": "evaluator",
       "label": "Evaluator · 게이트",
-      "sub": "규칙 검사 → judge\nG1–G4 (보정된 검정)",
+      "sub": "규칙 검사 · G1–G4 · 판정 예산 3회\n(judge는 승인 화면 참고)",
       "group": "vm",
       "emphasis": true
     },
@@ -145,7 +139,7 @@
     {
       "id": "verifier",
       "label": "Verifier",
-      "sub": "트리거 제외 구간 대비 이중차분\n악화 → 자동 롤백 · 미결 → 유지",
+      "sub": "트리거 제외 구간 대비 이중차분\n순차 검정 · 악화 → 자동 롤백(CAS)",
       "group": "vm"
     },
     {
@@ -202,8 +196,8 @@
   "edges": [
     {
       "from": "bizagent",
-      "to": "collector",
-      "label": "OTLP"
+      "to": "phoenix",
+      "label": "OTLP 직접 (Collector 없음)"
     },
     {
       "from": "frontier",
@@ -212,26 +206,16 @@
       "dashed": true
     },
     {
-      "from": "collector",
-      "to": "ard",
-      "label": "정본 (원본 전체)"
-    },
-    {
-      "from": "collector",
-      "to": "phoenix",
-      "label": "사본 (1·2등급 구조만)"
-    },
-    {
       "from": "front",
       "to": "ard",
-      "label": "조회 (log_query)",
-      "back": true
+      "label": "조회 (Q9 뒤)",
+      "back": true,
+      "dashed": true
     },
     {
       "from": "front",
       "to": "phoenix",
-      "label": "조회 (정본 없을 때)",
-      "dashed": true,
+      "label": "조회 (API · VM 간)",
       "back": true
     },
     {
@@ -358,6 +342,12 @@
       "to": "tester",
       "label": "제출 (제출자 권한 ∩ 평가 계정)",
       "back": true
+    },
+    {
+      "from": "verifier",
+      "to": "dbc",
+      "label": "악화 → 직전 승인 버전 자동 롤백 (CAS)",
+      "dashed": true
     }
   ],
   "legend": [

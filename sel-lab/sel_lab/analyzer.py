@@ -86,7 +86,8 @@ def _rates(batch):
         if not g["passed"]:
             k["hits"] += 1
             k["users"].add(g["case_id"])          # 골든셋은 주체 대신 서로 다른 사례 수로 센다
-            k["evidence"].append({"run_id": g["run_id"], "case_id": g["case_id"], "grade": 0})
+            k["evidence"].append({"run_id": g["run_id"], "case_id": g["case_id"], "grade": 0,
+                                  "failed_checks": sorted(x for x, v in (g.get("checks") or {}).items() if v is False)})
     return m, platform
 
 

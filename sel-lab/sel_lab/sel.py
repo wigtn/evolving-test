@@ -1,4 +1,4 @@
-"""SEL 서비스: 개선 케이스 상태머신과 Creator·Improver·Tester·Evaluator·Gate·Promoter·Verifier (앱 설계 3·4·6장).
+"""SEL 서비스 (PRD v0.7): 개선 케이스 상태머신과 Creator·Improver·Tester·Evaluator·Gate·Promoter·Verifier (앱 설계 3·4·6장).
 
 케이스 = 자산 하나 · 패턴 하나 · 가설 하나. 자산당 활성 케이스는 하나. 상태 전이는 case_event에 추가 기록한다.
 저장소는 로컬 SQLite (운영에서는 PostgreSQL sel 스키마, Database Connector 경유).
@@ -18,7 +18,9 @@ from . import gate, registry, tester
 from .config import DATA, RUNS, chat_model, offline
 
 DB = RUNS / "sel.sqlite"
-TERMINAL = {"VERIFIED", "REJECTED", "DISMISSED", "ROLLED_BACK"}
+TERMINAL = {"VERIFIED", "REJECTED", "DISMISSED", "ROLLED_BACK", "ROLLBACK_SKIPPED"}
+JUDGE_BUDGET = 3          # finding(dedupe_key)당 게이트 판정 총 횟수 (PRD v0.7 6장)
+HELD_RETRIES = 2          # 일시적 HELD 재시도 상한
 CHANGE_LIMITS = {"instruction": 30}
 
 
@@ -33,6 +35,9 @@ def db():
     create table if not exists improvement_case(case_id text primary key, target_asset text, base_version text, dedupe_key text,
         state text, iteration int, fidelity text, signal text, body text, updated_at text);
     create table if not exists case_event(event_id text primary key, case_id text, from_state text, to_state text, actor text, payload text, at text);
+    create table if not exists exposure(agent text, content_hash text, source text, at text, primary key(agent, content_hash));
+    create table if not exists budget(dedupe_key text primary key, used int);
+    create table if not exists suppressed(dedupe_key text primary key, reason text, at text);
     """)
     return c
 
@@ -59,11 +64,42 @@ def transition(c, case, to, actor, payload=None):
     c.commit()
 
 
+def _hash(text: str) -> str:
+    import hashlib
+    return hashlib.sha1(" ".join((text or "").split()).encode()).hexdigest()[:16]
+
+
+def expose(agent: str, texts, source: str) -> None:
+    """노출 원장: Creator 컨텍스트에 들어간 입력을 기록한다. 같은 입력의 골든셋 사례는 held-out이 될 수 없다."""
+    c = db()
+    for x in texts:
+        c.execute("insert or ignore into exposure values(?,?,?,?)", (agent, _hash(x), source, _now()))
+    c.commit()
+
+
+def exposed(agent: str) -> set[str]:
+    return {r[0] for r in db().execute("select content_hash from exposure where agent=?", (agent,))}
+
+
+def suppress(c, dedupe_key: str, reason: str) -> None:
+    c.execute("insert or replace into suppressed values(?,?,?)", (dedupe_key, reason, _now()))
+    c.commit()
+
+
+def budget_used(c, dedupe_key: str) -> int:
+    r = c.execute("select used from budget where dedupe_key=?", (dedupe_key,)).fetchone()
+    return r[0] if r else 0
+
+
 def ingest(findings: list[dict]) -> list[str]:
-    """중복 키로 묶고, 활성 케이스가 있으면 증거로 붙이고, 없으면 케이스를 연다."""
+    """중복 키로 묶고, 활성 케이스가 있으면 증거로 붙이고, 없으면 케이스를 연다.
+    suppressed finding(판정 예산 소진, REJECTED, 롤백)은 다시 열지 않는다 (PRD v0.7)."""
     c = db()
     opened = []
+    sup = {r[0] for r in c.execute("select dedupe_key from suppressed")}
     for f in findings:
+        if f["dedupe_key"] in sup:
+            continue
         target = f["target"]["asset_ref"] or f"new/{f['target'].get('procedure')}"
         base = target.split("@")[0]
         live = c.execute("select case_id from improvement_case where (dedupe_key=? or target_asset=?) and state not in (%s)"
@@ -123,7 +159,12 @@ def _ask(role: str, system: str, user: str, retries: int = 1) -> dict:
 def _evidence(finding, limit=5):
     from . import tracing
     ids = {e["run_id"] for e in finding.get("evidence", [])}
+    if finding["signal"] == "eval_fail":                   # R6: 고정 사례 원문은 Creator에 넘기지 않는다 (PRD v0.7 5장)
+        return [{"case_id": e["case_id"], "case_kind": e["case_id"].split("/")[0],
+                 "failed_checks": e.get("failed_checks", [])} for e in finding.get("evidence", [])[:limit]]
     runs = [r for r in tracing.read("runs_prod") + tracing.read("runs_eval") if r["run_id"] in ids][:limit]
+    # 증거 구획을 거쳐 Creator 컨텍스트에 들어가는 입력은 노출 원장에 올린다 (held-out에서 영구 제외)
+    expose(registry.DEFAULT_AGENT, [r["user_message"] for r in runs], "creator_evidence")
     out = []
     for r in runs:
         out.append({"user_message": r["user_message"], "status": r["status"], "final_answer": r["final_answer"][:400],
@@ -263,24 +304,48 @@ def _validate_hypothesis(h: dict) -> dict:
     return h
 
 
-def split_golden(seed: str) -> set[str]:
-    """골든셋을 시드로 dev/held-out 분할한다 (PRD v0.6 5장). 사람이 관리하는 세트가 아니다.
-    같은 템플릿(kind)의 사례도 시드에 따라 섞이지만, 반으로 나눠 양쪽에 남게 한다."""
+DEV_PER_KIND = 2   # dev 쪽 비대칭 분할: 업무 유형당 소량만 (PRD: 최대 10)
+
+
+def split_golden(seed: str, agent: str = registry.DEFAULT_AGENT) -> set[str]:
+    """held-out = 노출 원장 밖의 골든셋 사례 중 dev 소량을 뺀 나머지 (PRD v0.7 5장).
+    Creator 컨텍스트에 한 번이라도 들어간 입력의 사례는 시드와 무관하게 held-out에 들어오지 않는다.
+    lab 데이터에는 template_id가 없어 사례 하나를 템플릿 하나로 본다."""
     import zlib
-    return {c["eval_case_id"] for c in tester.cases().values()
-            if not c["fixed"] and zlib.crc32(f"{seed}|{c['eval_case_id']}".encode()) % 2 == 1}
+    seen = exposed(agent)
+    pool = [c for c in tester.cases().values() if not c["fixed"] and _hash(c["input"]["user_message"]) not in seen]
+    by_kind = {}
+    for c in sorted(pool, key=lambda c: zlib.crc32(f"{seed}|{c['eval_case_id']}".encode())):
+        by_kind.setdefault(c["kind"], []).append(c["eval_case_id"])
+    return {cid for ids in by_kind.values() for cid in ids[DEV_PER_KIND:]}
 
 
-def build_eval_set(h: dict, n_target=12, n_guard=4, seed: str = "default") -> dict:
-    """판정 세트: 목표·가드는 시드 분할의 held-out 쪽에서, 고정은 전부. 실행 전에 고정한다.
-    Creator는 held-out 내용을 보지 않고 집계만 받는다."""
-    cs = tester.cases().values()
-    held = split_golden(seed)
-    hold = [c for c in cs if c["eval_case_id"] in held or c["fixed"]]
-    tk = [c for c in hold if c["kind"] in h.get("target_kinds", [])]
-    target = [c["eval_case_id"] for c in sorted(tk, key=lambda c: not _informative(c))][:n_target]
-    guard = [c["eval_case_id"] for c in hold if c["kind"] in h.get("guard_kinds", []) and not c["fixed"]][:n_guard]
-    fixed = [c["eval_case_id"] for c in cs if c["fixed"]][:4]
+def build_eval_set(finding: dict | None, n_target=12, n_guard=8, k_probe=2, n_probe=200,
+                   seed: str = "default", log=print) -> dict:
+    """판정 세트를 코드가 뽑는다. Creator의 가설은 세트를 고르지 않는다 (PRD v0.7 5장).
+
+    요청 문장으로 업무 유형을 분류해 목표를 고르면, 결함이 문장에 드러나지 않는 경우(예: 이름이 겹치는 거래처)
+    기준 버전이 이미 통과하는 사례만 뽑혀 개선을 잴 수 없다. 그래서 기준 실패 탐침으로 고른다.
+    - 탐침: held-out 후보(시드 표본 n_probe건)를 현행 활성 버전으로 k_probe회 실행한다. 결과는 선정에만 쓰고 판정에는 다시 실행한다
+      (선정과 판정이 독립이라 평균 회귀가 기준·후보 양쪽에 같게 걸린다).
+    - 목표 = 탐침에서 한 번이라도 실패한 사례. R6(eval_fail)이면 실패한 고정 사례도 목표에 넣는다(내용은 Creator에 안 갔다).
+    - 가드 = 탐침에서 전부 통과한 사례 중 시드 무작위. 고정 = 전부."""
+    import zlib
+    cs = tester.cases()
+    held = sorted(split_golden(seed), key=lambda x: zlib.crc32(f"probe|{seed}|{x}".encode()))[:n_probe]
+    fail, ok = [], []
+    for cid in held:
+        runs = [tester.run_case(cs[cid], None, arm="probe", repeat=r) for r in range(k_probe)]
+        valid = [r["passed"] for r in runs if r["passed"] is not None]
+        if valid:
+            (ok if all(valid) else fail).append(cid)
+    target = fail[:n_target]
+    if finding and finding["signal"] == "eval_fail":
+        target = sorted({e["case_id"] for e in finding.get("evidence", []) if e.get("case_id")}) + target
+    guard = sorted(ok, key=lambda x: zlib.crc32(f"guard|{seed}|{x}".encode()))[:n_guard]
+    fixed = [c["eval_case_id"] for c in cs.values() if c["fixed"]][:4]
+    fixed = [x for x in fixed if x not in target]
+    log(f"  probe: held-out {len(held)}건 × {k_probe}회, 기준 실패 {len(fail)}건 → 목표 {len(target)}, 가드 {len(guard)}")
     return {"target": target, "guard": guard, "fixed": fixed}
 
 
@@ -423,7 +488,7 @@ def step(cid: str, k: int = 3, log=print) -> str:
             transition(c, case, "DISMISSED", "sel_creator", {"reason": h.get("reason")})
         else:
             case["iteration"] += 1
-            h["eval_set"] = build_eval_set(h, seed=f"{cid}|{case['iteration']}")   # 시도마다 새로 분할
+            h["eval_set"] = build_eval_set(case["body"]["finding"], seed=f"{cid}|{case['iteration']}", log=log)
             case["body"]["hypothesis"] = h
             transition(c, case, "TRIAGED", "sel_creator", {"hypothesis": h["hypothesis"], "target": h["target_asset_ref"]})
     elif st == "TRIAGED":
@@ -443,6 +508,11 @@ def step(cid: str, k: int = 3, log=print) -> str:
             case["body"]["candidate"] = {"ref": cand.ref, "note": out["note"]}
             transition(c, case, "CANDIDATE_READY", "sel_improver", {"candidate": cand.ref})
     elif st == "CANDIDATE_READY":
+        dk = case["dedupe_key"]
+        if budget_used(c, dk) >= JUDGE_BUDGET:
+            suppress(c, dk, "판정 예산 소진")
+            transition(c, case, "REJECTED", "sel_service", {"reason": "판정 예산 소진"})
+            return "REJECTED"
         transition(c, case, "EVALUATING", "tester")
         h, cand = case["body"]["hypothesis"], case["body"]["candidate"]["ref"]
         base, ver = cand.split("@")
@@ -450,8 +520,23 @@ def step(cid: str, k: int = 3, log=print) -> str:
         dec = gate.decide(results, case["fidelity"])
         case["body"]["gate"] = dec
         case["body"]["results"] = results
+        if dec["verdict"] != "HELD":                       # HELD는 판정이 아니므로 예산을 쓰지 않는다
+            c.execute("insert into budget values(?,1) on conflict(dedupe_key) do update set used=used+1", (dk,))
+        if dec["verdict"] == "HELD" and dec.get("held_reason") == "structural":
+            suppress(c, dk, "구조적 판정 불가: " + dec.get("held_detail", ""))
+            transition(c, case, "REJECTED", "gate", {"reason": "구조적 판정 불가", "detail": dec.get("held_detail")})
+            return "REJECTED"
         nxt = {"PASS": "GATE_PASSED", "FAIL": "GATE_FAILED", "HELD": "HELD"}[dec["verdict"]]
-        transition(c, case, nxt, "gate", {k2: dec[k2] for k2 in ("G1", "G2", "G3", "G4")} | {"target": dec["target"]})
+        transition(c, case, nxt, "gate", {k2: dec[k2] for k2 in ("G1", "G2", "G3", "G4")} | {"target": dec["target"],
+                                                                                          "budget_used": budget_used(c, dk)})
+    elif st == "HELD":                                     # 일시적 판정 불가: 같은 세트로 재시도
+        n = case["body"].get("held_retries", 0)
+        if n >= HELD_RETRIES:
+            transition(c, case, "REJECTED", "sel_service", {"reason": "HELD 재시도 소진"})
+        else:
+            case["body"]["held_retries"] = n + 1
+            case["body"].pop("results", None)              # 이전 부분 결과는 버린다
+            transition(c, case, "CANDIDATE_READY", "sel_service", {"retry": n + 1})
     elif st == "GATE_PASSED":
         registry.set_lifecycle(case["body"]["candidate"]["ref"], "candidate")
         transition(c, case, "AWAITING_APPROVAL", "sel_service")
@@ -463,14 +548,18 @@ def step(cid: str, k: int = 3, log=print) -> str:
                                         "gate": {k: g[k] for k in ("verdict", "G1", "G2", "G3", "G4", "target", "guard")} if g else None})
         case["body"].pop("candidate", None)
         case["body"].pop("results", None)
-        transition(c, case, "REJECTED" if case["iteration"] >= gate.MAX_ITER else "OPEN", "sel_orchestrator")
+        if budget_used(c, case["dedupe_key"]) >= JUDGE_BUDGET:
+            suppress(c, case["dedupe_key"], "판정 예산 소진")
+            transition(c, case, "REJECTED", "sel_orchestrator", {"reason": "판정 예산 소진"})
+        else:
+            transition(c, case, "OPEN", "sel_orchestrator")
     return _case(c, cid)["state"]
 
 
 def run_until_wait(cid: str, k: int = 3, log=print) -> str:
     for _ in range(20):
         st = _case(db(), cid)["state"]
-        if st in TERMINAL | {"AWAITING_APPROVAL", "HELD", "VERIFYING"}:
+        if st in TERMINAL | {"AWAITING_APPROVAL", "VERIFYING"}:
             return st
         log(f"[{cid}] {st} →")
         step(cid, k=k, log=log)
@@ -495,6 +584,7 @@ def approve(cid: str, approver: str, comment: str = "") -> str:
 def reject(cid: str, approver: str, reason: str) -> str:
     c = db()
     case = _case(c, cid)
+    suppress(c, case["dedupe_key"], f"승인자 반려: {reason}")
     transition(c, case, "REJECTED", approver, {"reason": reason})
     return "REJECTED"
 
@@ -511,10 +601,28 @@ def verify(cid: str, after: dict) -> str:
     ok = after_rate <= max(before / 2, 0.02)
     case["body"]["verification"] = {"rate_before": before, "rate_after": after_rate}
     transition(c, case, "VERIFIED" if ok else "REGRESSED", "verifier", case["body"]["verification"])
+    if not ok:
+        auto_rollback(c, case)
     return case["state"]
 
 
+def auto_rollback(c, case) -> None:
+    """직전 승인 버전으로 자동 롤백 (PRD v0.7 7장). CAS: 현재 활성 == 이 케이스가 릴리스한 버전일 때만."""
+    rel = case["body"]["release"]
+    base = rel["version"].split("@")[0]
+    now = registry.active_ref(base)
+    if now != rel["version"]:                              # 롤백하지 않고 기록만. finding은 known으로 두어 다음 분석이 현재 버전으로 다시 잡는다
+        case["body"]["rollback"] = {"cas": False, "active": now, "released": rel["version"]}
+        transition(c, case, "ROLLBACK_SKIPPED", "verifier", case["body"]["rollback"])
+        return
+    suppress(c, case["dedupe_key"], "반영 후 악화")
+    registry.set_active(f"{base}@{rel['prev']}", f"{case['case_id']} 자동 롤백", "verifier")
+    case["body"]["rollback"] = {"cas": True, "to": rel["prev"]}
+    transition(c, case, "ROLLED_BACK", "verifier", case["body"]["rollback"])
+
+
 def rollback(cid: str, approver: str) -> str:
+    """운영자 비상 롤백 (루프 밖 운영 조치). 루프의 롤백은 auto_rollback이 한다."""
     c = db()
     case = _case(c, cid)
     prev = case["body"]["release"]["prev"]

@@ -247,18 +247,16 @@ def cmd_smoke(a):
 
 
 def cmd_aa(a):
-    """A/A: 같은 버전끼리 게이트를 돌려 오판률을 잰다 (PRD v0.5 6장, M2c 착수 조건).
+    """A/A: 같은 버전끼리 게이트를 돌려 오판률을 잰다 (PRD v0.7 6장, M2c 착수 조건).
     오프라인 가짜 에이전트는 결정적이라 오판이 0으로 나온다. 의미 있는 값은 사내 LLM으로 잰다."""
     from . import gate
     from .sel import build_eval_set
     if not offline():
         preflight()
     registry.init_state(force=False)
-    kinds = sorted({c["kind"] for c in tester.cases().values()})
     trials = {"G1_pass": 0, "G2_fail": 0, "G3a_fail": 0, "G3b_fail": 0, "regress>allow": 0, "verdict_pass": 0}
     for i in range(a.trials):
-        h = {"target_kinds": [kinds[i % len(kinds)]], "guard_kinds": [kinds[(i + 1) % len(kinds)]]}
-        es = build_eval_set(h, seed=f"aa|{i}")
+        es = build_eval_set(None, seed=f"aa|{i}", log=lambda *_: None)   # 운영과 같은 탐침 선정 (선정 편향 점검)
         res = tester.paired_run(es, {}, k=a.k, log=lambda *_: None)   # 후보 = 기준과 같은 버전
         d = gate.decide(res)
         trials["G1_pass"] += d["G1"]
@@ -267,7 +265,7 @@ def cmd_aa(a):
         trials["G3b_fail"] += not d["G3b"]
         trials["regress>allow"] += d["regressed_cases"] > d["regress_allow"]
         trials["verdict_pass"] += d["verdict"] == "PASS"
-        print(f"  trial {i + 1}: target={h['target_kinds']} verdict={d['verdict']} G1={d['G1']} G2={d['G2']} "
+        print(f"  trial {i + 1}: target={len(es['target'])} guard={len(es['guard'])} verdict={d['verdict']} G1={d['G1']} G2={d['G2']} "
               f"G3a={d['G3a']} G3b={d['G3b']} regressed={d['regressed_cases']}/{d['regress_allow']} d̄={d['target']['dbar']:.3f}")
     print("A/A 오판률 (목표: 각각 5% 이하, 판단에는 59회 이상 필요):",
           {k: f"{v}/{a.trials}" for k, v in trials.items()})

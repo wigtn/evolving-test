@@ -1,5 +1,5 @@
 {
-  "title": "SEL 상세 · 스케줄러부터 검증까지 (PRD v0.6)",
+  "title": "SEL 상세 · 스케줄러부터 검증까지 (PRD v0.10)",
   "subtitle": "매시 = 운영 기록 집계(관찰) · 매일 = 기준선 갱신과 골든셋 직접 실행(능동 시험) · 굵은 선 = 개선 한 사이클 · 사람은 SEL Admin UI 한 곳에만 · 빨간 상자 = 보안 단계",
   "direction": "DOWN",
   "groups": [
@@ -38,13 +38,13 @@
     {
       "id": "jh",
       "label": "매시 · 폴백 분석",
-      "sub": "지난 1시간 + 재스캔 구간",
+      "sub": "24시간 롤링 창 · watermark · 완전성 95%",
       "group": "sch"
     },
     {
       "id": "jb",
       "label": "매일 · 기준선 재계산",
-      "sub": "자산 버전별 28일 발생률",
+      "sub": "자산 계열별 28일 발생률",
       "group": "sch"
     },
     {
@@ -68,12 +68,12 @@
     {
       "id": "a1",
       "label": "원천 증분 조회",
-      "sub": "정본 · 사본 · 세션 기록 · 사용 원장",
+      "sub": "Phoenix(별도 VM) · 게이트 원장 · 세션 기록",
       "group": "an"
     },
     {
       "id": "a2",
-      "label": "R1–R8 집계",
+      "label": "R1–R3 · R5 · R7 집계",
       "sub": "자산 버전별 신호 발생률",
       "group": "an"
     },
@@ -86,7 +86,7 @@
     {
       "id": "s1",
       "label": "케이스 상태머신",
-      "sub": "자산당 활성 1 · 동시 10\n우선순위 rate×reach×weight",
+      "sub": "자산당 활성 1 (검증 중 포함) · 동시 10\n판정 예산 3 · suppressed (사유별 해제 조건)",
       "group": "svc",
       "emphasis": true
     },
@@ -99,7 +99,7 @@
     {
       "id": "c0",
       "label": "증거 구획 (코드)",
-      "sub": "Creator·judge로 가는 외부 텍스트 전부\n필드 기본 거부 · 지시문 의심 문장 제거\n내용 사용 여부 기록",
+      "sub": "Creator·judge로 가는 외부 텍스트 전부\n필드 기본 거부 · 지시문 의심 문장 제거\n노출 원장 기록",
       "group": "mk",
       "tone": "red",
       "emphasis": true
@@ -107,14 +107,14 @@
     {
       "id": "c1",
       "label": "진단",
-      "sub": "증거: 정본 내용 또는\n샌드박스 재현 · 결함 사례 자동 격리",
+      "sub": "cause_class 출력 → 코드가 분기\n샌드박스 재현 · 평가 실행 trace",
       "group": "mk",
       "emphasis": true
     },
     {
       "id": "c2",
-      "label": "가설 · 평가 세트 고정",
-      "sub": "목표 · 가드 · 고정 (frozen)",
+      "label": "기준 실패 탐침 · 세트 고정",
+      "sub": "기준 버전 탐침 → 실패=목표 · 통과=가드\n최소 규모 · 정답 ≥ 30% · 실패면 구조적 REJECTED",
       "group": "mk",
       "emphasis": true
     },
@@ -149,7 +149,7 @@
     {
       "id": "g1",
       "label": "게이트",
-      "sub": "G3a 정책 위반 0 → G3b 보정 검정(k=10)\n→ G2 비열등(δ 0.05) → G1 LCB>0 & MMI\n붕괴 회귀 ≤ 허용치 · G4 판정 가능",
+      "sub": "G3a 정책 → G3b 보정 검정(k=10)\n→ G2 비열등 → G1 LCB>0 & MMI\n붕괴 회귀 ≤ 허용치 · finding당 판정 3회",
       "group": "ev",
       "shape": "decision",
       "emphasis": true
@@ -172,27 +172,27 @@
     {
       "id": "r1",
       "label": "릴리스",
-      "sub": "full·relay: 전체\ngateway·action·new_asset: 카나리",
+      "sub": "full·relay: 전체 (승인 시 기준·digest CAS)\ngateway·action: 카나리 (카나리 전엔 GATE_PASSED에서 PARKED)",
       "group": "rl",
       "emphasis": true
     },
     {
       "id": "v1",
       "label": "Verifier",
-      "sub": "트리거 제외 구간 대비 이중차분\n+ 급등 전 기준선 비열등\n악화 → 자동 롤백 · 미결 → 유지",
+      "sub": "트리거 제외 구간 대비 이중차분\n순차 검정 · 악화 → 자동 롤백(CAS)\n미결 → 유지",
       "group": "rl"
     },
     {
       "id": "ho",
-      "label": "골든셋 → held-out 분할",
-      "sub": "SKILL 내장 케이스 + 결과 신호 재현 사례\n케이스마다 시드로 코드 분할 · Creator는 집계만",
+      "label": "골든셋 · 노출 원장",
+      "sub": "Creator가 본 사례는 dev로 영구 강등\n목표·가드는 노출 안 된 사례에서 코드가 추출",
       "shape": "db",
       "tone": "gray"
     },
     {
       "id": "reg",
       "label": "자산 저장소",
-      "sub": "draft → 제안 → 활성 → 폐기",
+      "sub": "draft → candidate → proposed → active → retired",
       "shape": "db",
       "tone": "gray"
     },
@@ -237,7 +237,7 @@
     {
       "from": "jd",
       "to": "s1",
-      "label": "초과 → HELD · REJECTED"
+      "label": "기한 초과 → 상태별 목적지"
     },
     {
       "from": "s1",
@@ -308,7 +308,7 @@
     {
       "from": "g1",
       "to": "c1",
-      "label": "FAIL (반복 ≤ 3)",
+      "label": "FAIL (판정 예산 3회)",
       "back": true
     },
     {
@@ -363,6 +363,12 @@
       "to": "t1",
       "label": "제출",
       "back": true
+    },
+    {
+      "from": "v1",
+      "to": "reg",
+      "label": "자동 롤백 (CAS)",
+      "dashed": true
     }
   ],
   "legend": [

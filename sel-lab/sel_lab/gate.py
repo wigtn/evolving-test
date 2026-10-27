@@ -1,4 +1,4 @@
-"""게이트 통계 (PRD v0.5 6장).
+"""게이트 통계 (PRD v0.7 6장).
 
 - G1 개선: 목표 세트 짝 차이 d_i의 단측 신뢰 하한 > 0, 그리고 d̄ ≥ MMI(사전 고정 최소 의미 개선).
   MDI는 표본 설계용이며 판정에 쓰지 않는다.
@@ -135,19 +135,26 @@ def decide(results, fidelity="full", mmi: float = MMI) -> dict:
     total = len(results)
     failed = sum(1 for r in results if r["score"] is None)
     fail_rate = failed / total if total else 1.0
-    guard_planned = any(r["set"] == "guard" for r in results)
+    guard_planned = True                           # v0.7: 가드는 필수. 비면 판정하지 않는다 (구조적 HELD)
 
     g1 = t["lcb"] > 0 and t["dbar"] >= mmi
     if fidelity in ("gateway", "action"):          # 대리 에이전트 실행이면 G1은 비열등, 개선 판정은 카나리
         g1 = t["lcb"] > -DELTA
     g2 = (not guard_planned) or (g["n"] >= 2 and g["lcb"] > -DELTA)
     g3 = not g3a_viol and not g3b_viol
-    g4 = fail_rate <= 0.10 and t["n"] >= 2 and (not guard_planned or g["n"] >= 2)
+    structural = []
+    if t["n"] < 2:
+        structural.append("목표 세트 부족")
+    if g["n"] < 2:
+        structural.append("가드 세트 부족")
+    g4 = fail_rate <= 0.10 and not structural
     allow = collapse_allowance(tg)
     no_regress = len(regressed) <= allow
     verdict = "HELD" if not g4 else ("PASS" if (g1 and g2 and g3 and no_regress) else "FAIL")
+    held_reason = "structural" if structural else ("transient" if not g4 else None)
     return {"verdict": verdict, "G1": g1, "G2": g2, "G3": g3, "G4": g4, "regressed_cases": len(regressed),
             "regress_allow": allow, "G3a": not g3a_viol, "G3b": not g3b_viol,
+            "held_reason": held_reason, "held_detail": ", ".join(structural),
             "alpha_prime": alpha, "mmi": mmi, "target": t, "guard": g,
             "g3a_violations": g3a_viol, "g3b_violations": g3b_viol, "regressed": regressed,
             "fixed_violations": g3a_viol + g3b_viol, "run_failure_rate": fail_rate}

@@ -108,9 +108,9 @@ trace 화면이 필요하면 `pip install -e ".[phoenix]"` 후 `phoenix serve`�
 | `sel_lab/worker.py` | 워커. 자산 묶음으로 에이전트를 조립. 기본은 LangChain `create_agent`, `SEL_WORKER=deepagents`면 DeepAgents. `max_turns`는 ModelCallLimitMiddleware. 잘못된 도구 인자는 ARG_INVALID로 감사 기록에 남긴다 |
 | `sel_lab/scorer.py` | 규칙 채점 |
 | `sel_lab/tester.py` | 쌍대 실행 (기준 팔 · 후보 팔 × k) |
-| `sel_lab/gate.py` | 게이트 (PRD v0.5): G1 LCB>0 & MMI, G2 비열등(δ 0.05), G3a 정책 규칙 위반 0, G3b 사례 수 보정 Fisher 검정(고정 k=10), 회귀 = 완전 붕괴 수 ≤ 허용치(기준 통과율로 계산한 포아송 95% 분위), G4 판정 가능 |
+| `sel_lab/gate.py` | 게이트 (PRD v0.7): G1 LCB>0 & MMI, G2 비열등(δ 0.05), G3a 정책 규칙 위반 0, G3b 사례 수 보정 Fisher 검정(고정 k=10), 회귀 = 완전 붕괴 수 ≤ 허용치(기준 통과율로 계산한 포아송 95% 분위), G4 판정 가능(목표·가드 각 2건 미만이면 구조적 HELD → REJECTED) |
 | `sel_lab/analyzer.py` | 폴백 분석기 R1, R2, R5, R6, R7, R8 |
-| `sel_lab/sel.py` | 케이스 상태머신, Creator, Improver, 정적 검사, 승인·릴리스·검증·롤백 |
+| `sel_lab/sel.py` | 케이스 상태머신, Creator, Improver, 정적 검사, 노출 원장, 판정 세트 추출(코드), 판정 예산·억제, 승인·릴리스·검증, CAS 자동 롤백 |
 | `sel_lab/cli.py` | 명령 |
 | `gen/build.py` | 가짜 데이터 재생성 |
 
@@ -123,13 +123,17 @@ DeepAgents `create_deep_agent`는 파일 도구(ls, read_file, write_file 등)�
 - 결함 버전은 평범한 버전 번호를 쓴다 (`-d01` 같은 표지 없음). 규칙 마커는 원본(`data/assets_src/`)에만 있고 루프가 보는 `data/assets/`에는 없다.
 - 운영 실행 기록에는 평가 케이스 ID를 넣지 않는다. 시뮬레이터 대응표는 `runs/traces/sim_index.jsonl`에 따로 두고 루프는 읽지 않는다.
 - 세션 기록에는 채점 항목 이름이 아니라 사용자 발화만 남긴다.
-- Creator 가설의 대상은 항상 현재 활성 버전으로 강제한다. 판정용 holdout 사례 내용은 Creator·Improver에 넘기지 않는다.
+- Creator 가설의 대상은 항상 현재 활성 버전으로 강제한다.
+- 노출 원장(`exposure` 테이블): Creator 증거로 들어간 입력의 해시를 남긴다. 같은 입력의 골든셋 사례는 held-out에 들어가지 않는다.
+- 판정 세트는 코드가 뽑는다. 목표 업무 유형은 증거에서 정하고(`target_kinds_by_code`), Creator가 낸 target_kinds·guard_kinds는 세트 선정에 쓰지 않는다.
 
 ## PRD와 다른 점 (lab 단순화)
 
-- 군집 보정, judge 선호 점수, 케이스별 MMI 고정, 게이트 조기 종료 순서, 증거 구획, 유입 검사는 아직 구현하지 않았다. 정적 검사는 front matter 전체(허용 도구 포함) 변경만 막는다.
-- Verifier(`verify`)는 트리거 배치 대비 발생률이 절반 이하인지로 판정한다. PRD v0.5의 "트리거 제외 구간 대비 이중차분 + 급등 전 기준선 비열등"이 아니다. lab은 배치가 기준(b0)·트리거(b1)·반영 후(b2) 셋뿐이라 그렇다.
-- GATE_FAILED 뒤 케이스는 OPEN으로 돌아가 Creator가 가설부터 다시 세운다(앱 설계는 TRIAGED).
+- 군집 보정, judge 선호 점수, 케이스별 MMI 고정, 게이트 조기 종료 순서, 증거 구획, 유입 검사, 평가 사례 자동 격리는 아직 구현하지 않았다. 정적 검사는 front matter 전체(허용 도구 포함) 변경만 막는다.
+- Verifier(`verify`)는 트리거 배치 대비 발생률이 절반 이하인지로 판정한다. PRD v0.7의 "트리거 제외 구간 대비 이중차분 + 급등 전 기준선 비열등"이 아니다. lab은 배치가 기준(b0)·트리거(b1)·반영 후(b2) 셋뿐이라 그렇다. 악화면 CAS(현재 활성 == 릴리스 버전)가 성립할 때만 직전 버전으로 자동 롤백하고, 아니면 기록만 남긴다.
+- 골든셋에 template_id가 없어 사례 하나를 템플릿 하나로 보고, 업무 유형마다 dev 2건을 떼고 나머지를 held-out으로 쓴다. 판정 사례당 사용 상한(10회)은 세지 않는다.
+- document_post는 사례가 전부 고정(정책)이라 목표 세트가 비어 구조적 HELD → REJECTED가 된다. 의도된 동작이다.
+- GATE_FAILED 뒤 케이스는 OPEN으로 돌아가 Creator가 가설부터 다시 세운다(앱 설계는 TRIAGED). finding당 판정 3회를 쓰면 REJECTED, 이후 같은 dedupe_key는 열지 않는다.
 - Tool 메타데이터 변경을 허용한다(D06 시연용). PRD는 Tool 제외이고 D15가 미결이다.
 
 ## 아직 없는 것
@@ -138,7 +142,6 @@ DeepAgents `create_deep_agent`는 파일 도구(ls, read_file, write_file 등)�
 - judge 채점과 보정(7.4). 지금은 규칙 채점만
 - new_asset(D09)의 후보 SKILL 생성과 카나리. 오프라인 모드는 new_asset을 DISMISS한다
 - 카나리 릴리스. 지금은 full 충실도로 보고 전체 릴리스
-- 판정용 held-out을 사람이 관리하는 화면. 지금은 생성기가 dev/holdout을 나눈다
 
 ## 데이터
 
