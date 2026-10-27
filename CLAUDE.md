@@ -28,7 +28,7 @@ SEL은 Agent Runtime VM(Aegra) 안에서 스케줄러 신호로 Creator → Test
 - 판정은 PRD 6장 게이트 통계(G1–G4, 짝 차이, MDI) 하나만 쓴다. 케이스 단위 회귀 검사는 보조 조건.
 - judge는 고정. 규칙으로 판정할 수 있는 검사는 judge 앞에 둔다.
 - finding당 증분 개선안 하나, release line 하나.
-- 판정용 held-out은 사람이 관리. SEL 패치는 SKILL의 평가 케이스 필드를 바꾸지 않는다.
+- 사람 개입은 최종 승인(Admin UI) 하나. held-out은 골든셋을 케이스마다 시드로 코드 분할해 Creator에 숨긴 것. SEL 패치는 SKILL의 평가 케이스 필드를 바꾸지 않는다.
 - 평가 중 쓰기 본실행은 평가 계정 권한으로 막는다(플래그 금지, fail-open).
 - 활성 전환은 사람 승인으로만. 점수만으로 finding을 fixed로 닫지 않는다.
 
@@ -41,7 +41,7 @@ SEL은 Agent Runtime VM(Aegra) 안에서 스케줄러 신호로 Creator → Test
 
 ## 문서
 
-- `docs/01_PRD_SEL_v0.5.md`: SEL PRD. 결정의 이유와 결정 요청은 여기서 확인한다.
+- `docs/01_PRD_SEL_v0.6.md`: SEL PRD. 결정의 이유와 결정 요청은 여기서 확인한다.
 - `docs/02_M0_questions_branches.md`: 미결 질문과 답에 따른 설계 분기.
 - `docs/03_PRD_tracing_v3.1.md`: 트레이싱 PRD. 참고용.
 - `docs/04_SEL_e2e_examples.md`: e2e 개선 예시 14개 (PRD 아님. SEL 애플리케이션 설계 용어).

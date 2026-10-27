@@ -1,6 +1,6 @@
 {
   "title": "SEL · Agent Runtime VM 안의 평가·개선 루프",
-  "subtitle": "업무 에이전트 실행 → Collector가 정본·사본으로 적재 (트레이싱 팀) · 스케줄러가 깨우면 분석기가 원천을 조회(pull) · 개선안은 반드시 사람 승인 · 점선 = 미결·조건부",
+  "subtitle": "업무 에이전트 실행 → Collector가 정본·사본 적재 · 스케줄러가 깨우면 분석기가 원천을 조회(pull) · 사람 개입은 최종 승인(Admin UI) 하나 · 점선 = 미결·조건부",
   "direction": "DOWN",
   "groups": [
     {
@@ -137,7 +137,7 @@
     {
       "id": "admin",
       "label": "SEL Admin UI",
-      "sub": "사람 승인 · 반려 · 수정 요청",
+      "sub": "사람 승인 · 반려 · 수정 요청\n(루프 안 유일한 사람 개입)",
       "group": "vm",
       "shape": "actor",
       "emphasis": true
@@ -145,7 +145,7 @@
     {
       "id": "verifier",
       "label": "Verifier",
-      "sub": "트리거 제외 구간 대비 이중차분\n+ 급등 전 기준선 비열등",
+      "sub": "트리거 제외 구간 대비 이중차분\n악화 → 자동 롤백 · 미결 → 유지",
       "group": "vm"
     },
     {

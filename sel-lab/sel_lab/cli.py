@@ -258,7 +258,7 @@ def cmd_aa(a):
     trials = {"G1_pass": 0, "G2_fail": 0, "G3a_fail": 0, "G3b_fail": 0, "regress>allow": 0, "verdict_pass": 0}
     for i in range(a.trials):
         h = {"target_kinds": [kinds[i % len(kinds)]], "guard_kinds": [kinds[(i + 1) % len(kinds)]]}
-        es = build_eval_set(h)
+        es = build_eval_set(h, seed=f"aa|{i}")
         res = tester.paired_run(es, {}, k=a.k, log=lambda *_: None)   # 후보 = 기준과 같은 버전
         d = gate.decide(res)
         trials["G1_pass"] += d["G1"]

@@ -263,14 +263,24 @@ def _validate_hypothesis(h: dict) -> dict:
     return h
 
 
-def build_eval_set(h: dict, n_target=12, n_guard=4) -> dict:
-    """판정은 holdout 사례로만 한다 (사람이 관리하는 세트, Creator는 내용을 보지 않는다). 실행 전에 고정한다."""
+def split_golden(seed: str) -> set[str]:
+    """골든셋을 시드로 dev/held-out 분할한다 (PRD v0.6 5장). 사람이 관리하는 세트가 아니다.
+    같은 템플릿(kind)의 사례도 시드에 따라 섞이지만, 반으로 나눠 양쪽에 남게 한다."""
+    import zlib
+    return {c["eval_case_id"] for c in tester.cases().values()
+            if not c["fixed"] and zlib.crc32(f"{seed}|{c['eval_case_id']}".encode()) % 2 == 1}
+
+
+def build_eval_set(h: dict, n_target=12, n_guard=4, seed: str = "default") -> dict:
+    """판정 세트: 목표·가드는 시드 분할의 held-out 쪽에서, 고정은 전부. 실행 전에 고정한다.
+    Creator는 held-out 내용을 보지 않고 집계만 받는다."""
     cs = tester.cases().values()
-    hold = [c for c in cs if c["pool"] == "holdout"]
+    held = split_golden(seed)
+    hold = [c for c in cs if c["eval_case_id"] in held or c["fixed"]]
     tk = [c for c in hold if c["kind"] in h.get("target_kinds", [])]
     target = [c["eval_case_id"] for c in sorted(tk, key=lambda c: not _informative(c))][:n_target]
     guard = [c["eval_case_id"] for c in hold if c["kind"] in h.get("guard_kinds", []) and not c["fixed"]][:n_guard]
-    fixed = [c["eval_case_id"] for c in hold if c["fixed"]][:4]
+    fixed = [c["eval_case_id"] for c in cs if c["fixed"]][:4]
     return {"target": target, "guard": guard, "fixed": fixed}
 
 
@@ -413,7 +423,7 @@ def step(cid: str, k: int = 3, log=print) -> str:
             transition(c, case, "DISMISSED", "sel_creator", {"reason": h.get("reason")})
         else:
             case["iteration"] += 1
-            h["eval_set"] = build_eval_set(h)
+            h["eval_set"] = build_eval_set(h, seed=f"{cid}|{case['iteration']}")   # 시도마다 새로 분할
             case["body"]["hypothesis"] = h
             transition(c, case, "TRIAGED", "sel_creator", {"hypothesis": h["hypothesis"], "target": h["target_asset_ref"]})
     elif st == "TRIAGED":

@@ -1,6 +1,6 @@
 {
-  "title": "SEL 상세 · 스케줄러부터 검증까지 (PRD v0.5)",
-  "subtitle": "매시 = 운영 기록 집계(관찰) · 매일 = 기준선 갱신과 골든셋 직접 실행(능동 시험) · 굵은 선 = 개선 한 사이클 · 빨간 상자 = v0.5에서 추가된 보안 단계",
+  "title": "SEL 상세 · 스케줄러부터 검증까지 (PRD v0.6)",
+  "subtitle": "매시 = 운영 기록 집계(관찰) · 매일 = 기준선 갱신과 골든셋 직접 실행(능동 시험) · 굵은 선 = 개선 한 사이클 · 사람은 SEL Admin UI 한 곳에만 · 빨간 상자 = 보안 단계",
   "direction": "DOWN",
   "groups": [
     {
@@ -107,7 +107,7 @@
     {
       "id": "c1",
       "label": "진단",
-      "sub": "증거: 정본 내용 또는\n샌드박스 재현(실패 서명 일치)",
+      "sub": "증거: 정본 내용 또는\n샌드박스 재현 · 결함 사례 자동 격리",
       "group": "mk",
       "emphasis": true
     },
@@ -142,7 +142,7 @@
     {
       "id": "e1",
       "label": "Evaluator",
-      "sub": "규칙 검사 → judge 쌍대 선호(+1/0/−1)\n(보정: 자기 일치 0.8 · κ 0.6)",
+      "sub": "규칙 검사로 판정\n(judge 쌍대 선호는 승인 화면 참고용)",
       "group": "ev",
       "emphasis": true
     },
@@ -164,7 +164,7 @@
     {
       "id": "ad",
       "label": "SEL Admin UI",
-      "sub": "승인 · 반려 · 수정 요청\n(iteration 다르면 409)",
+      "sub": "승인 · 반려 · 수정 요청\n유일한 사람 개입 (iteration 다르면 409)",
       "group": "rl",
       "shape": "actor",
       "emphasis": true
@@ -179,13 +179,13 @@
     {
       "id": "v1",
       "label": "Verifier",
-      "sub": "트리거 제외 구간 대비 이중차분\n+ 급등 전 기준선 비열등\n→ VERIFIED / REGRESSED / INCONCLUSIVE",
+      "sub": "트리거 제외 구간 대비 이중차분\n+ 급등 전 기준선 비열등\n악화 → 자동 롤백 · 미결 → 유지",
       "group": "rl"
     },
     {
       "id": "ho",
-      "label": "held-out 평가셋",
-      "sub": "사람(SME) 관리 · Creator는 집계만",
+      "label": "골든셋 → held-out 분할",
+      "sub": "SKILL 내장 케이스 + 결과 신호 재현 사례\n케이스마다 시드로 코드 분할 · Creator는 집계만",
       "shape": "db",
       "tone": "gray"
     },
