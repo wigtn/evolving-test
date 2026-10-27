@@ -1,272 +1,143 @@
 {
-  "title": "SEL 상세 · 스케줄러부터 검증까지 (PRD v0.10)",
-  "subtitle": "매시 = 운영 기록 집계(관찰) · 매일 = 기준선 갱신과 골든셋 직접 실행(능동 시험) · 굵은 선 = 개선 한 사이클 · 사람은 SEL Admin UI 한 곳에만 · 빨간 상자 = 보안 단계",
+  "title": "SEL ② 자산 생성 · Creator와 Improver",
+  "subtitle": "LLM이 하는 일은 원인 가설과 후보 작성 둘뿐, 나머지는 결정적 코드 · 빨간 상자 = 보안 단계 · 굵은 선 = 정상 경로",
   "direction": "DOWN",
   "groups": [
     {
-      "id": "sch",
-      "label": "스케줄러",
-      "tone": "orange"
+      "id": "in",
+      "label": "입력"
     },
     {
-      "id": "an",
-      "label": "폴백 분석기 (4장)",
-      "tone": "green"
-    },
-    {
-      "id": "svc",
-      "label": "SEL 서비스 (9장)",
-      "tone": "violet"
-    },
-    {
-      "id": "mk",
-      "label": "개선안 작성 (7장)",
+      "id": "cr",
+      "label": "Creator",
       "tone": "teal"
     },
     {
-      "id": "ev",
-      "label": "평가 · 게이트 (5·6장)",
-      "tone": "blue"
+      "id": "im",
+      "label": "Improver",
+      "tone": "violet"
     },
     {
-      "id": "rl",
-      "label": "승인 · 릴리스 · 검증",
-      "tone": "gray"
+      "id": "out",
+      "label": "출력"
     }
   ],
   "nodes": [
     {
-      "id": "jh",
-      "label": "매시 · 폴백 분석",
-      "sub": "24시간 롤링 창 · watermark · 완전성 95%",
-      "group": "sch"
+      "id": "f",
+      "label": "finding (①)",
+      "sub": "+ dedupe_key · signature · 등급 · holdout_examples (추가 요청)",
+      "group": "in"
     },
     {
-      "id": "jb",
-      "label": "매일 · 기준선 재계산",
-      "sub": "자산 계열별 28일 발생률",
-      "group": "sch"
+      "id": "led",
+      "label": "노출 원장",
+      "sub": "Creator가 본 입력의 해시 · 영구",
+      "shape": "db",
+      "group": "in"
     },
     {
-      "id": "jg",
-      "label": "매일 · 정기 골든셋",
-      "sub": "부하 최저 시간대 · 고정 세트",
-      "group": "sch"
-    },
-    {
-      "id": "jv",
-      "label": "6시간 · Verifier",
-      "sub": "카나리 · 대조군 이중차분",
-      "group": "sch"
-    },
-    {
-      "id": "jd",
-      "label": "10분 · 기한 감시",
-      "sub": "상태별 기한 초과 처리",
-      "group": "sch"
-    },
-    {
-      "id": "a1",
-      "label": "원천 증분 조회",
-      "sub": "Phoenix(별도 VM) · 게이트 원장 · 세션 기록",
-      "group": "an"
-    },
-    {
-      "id": "a2",
-      "label": "R1–R3 · R5 · R7 집계",
-      "sub": "자산 버전별 신호 발생률",
-      "group": "an"
-    },
-    {
-      "id": "a3",
-      "label": "임계 · 묶기",
-      "sub": "지지 20 · 주체 3 · 기준선×1.5\n신호별 절대 상한(만성 결함) · 플랫폼 원인 제외",
-      "group": "an"
-    },
-    {
-      "id": "s1",
-      "label": "케이스 상태머신",
-      "sub": "자산당 활성 1 (검증 중 포함) · 동시 10\n판정 예산 3 · suppressed (사유별 해제 조건)",
-      "group": "svc",
-      "emphasis": true
-    },
-    {
-      "id": "s2",
-      "label": "case_event · outbox",
-      "sub": "상태 전이 기록 · 이벤트 발행",
-      "group": "svc"
-    },
-    {
-      "id": "c0",
-      "label": "증거 구획 (코드)",
-      "sub": "Creator·judge로 가는 외부 텍스트 전부\n필드 기본 거부 · 지시문 의심 문장 제거\n노출 원장 기록",
-      "group": "mk",
+      "id": "c1",
+      "label": "1 증거 구획 (코드)",
+      "sub": "데이터 블록 · 필드 기본 거부 · 지시문 제거",
+      "group": "cr",
       "tone": "red",
       "emphasis": true
     },
     {
-      "id": "c1",
-      "label": "진단",
-      "sub": "cause_class 출력 → 코드가 분기\n샌드박스 재현 · 평가 실행 trace",
-      "group": "mk",
-      "emphasis": true
-    },
-    {
       "id": "c2",
-      "label": "기준 실패 탐침 · 세트 고정",
-      "sub": "기준 버전 탐침 → 실패=목표 · 통과=가드\n최소 규모 · 정답 ≥ 30% · 실패면 구조적 REJECTED",
-      "group": "mk",
+      "label": "2 원인 가설 (LLM)",
+      "sub": "cause_class · 대상 자산 · 가설 한 문장",
+      "group": "cr",
       "emphasis": true
     },
     {
       "id": "c3",
-      "label": "개선안 draft",
-      "sub": "변경 유형 제약 · 수정 금지 필드\n유입 검사 · 누출 검사(fail-closed)",
-      "group": "mk",
-      "emphasis": true
-    },
-    {
-      "id": "t1",
-      "label": "Tester",
-      "sub": "asset_overrides 주입\n기준 팔 · 후보 팔 × k",
-      "group": "ev",
-      "emphasis": true
-    },
-    {
-      "id": "t2",
-      "label": "평가 샌드박스",
-      "sub": "standard-v1 · HITL 대역 · user simulator\n평가 계정: op 허용목록·행 범위·등급 상한",
-      "group": "ev",
-      "emphasis": true
-    },
-    {
-      "id": "e1",
-      "label": "Evaluator",
-      "sub": "규칙 검사로 판정\n(judge 쌍대 선호는 승인 화면 참고용)",
-      "group": "ev",
-      "emphasis": true
-    },
-    {
-      "id": "g1",
-      "label": "게이트",
-      "sub": "G3a 정책 → G3b 보정 검정(k=10)\n→ G2 비열등 → G1 LCB>0 & MMI\n붕괴 회귀 ≤ 허용치 · finding당 판정 3회",
-      "group": "ev",
+      "label": "3 자산 원인인가",
       "shape": "decision",
+      "group": "cr",
       "emphasis": true
     },
     {
-      "id": "i1",
-      "label": "Improver",
-      "sub": "제안 상태 등록 · 상신\nprovenance 기록",
-      "group": "rl",
+      "id": "dev",
+      "label": "개발자 작업 / 진단 불가 종료",
+      "sub": "tool_binding · code · infra / unknown",
+      "group": "out",
+      "shape": "external"
+    },
+    {
+      "id": "c4",
+      "label": "4 시험 문제 선정 (코드)",
+      "sub": "기준 실패 탐침 2회 · 서명 일치 = 과거 실패 입력\n전부 통과 = 정상 입력 · 필수 · 정책 케이스",
+      "group": "cr",
       "emphasis": true
     },
     {
-      "id": "ad",
-      "label": "SEL Admin UI",
-      "sub": "승인 · 반려 · 수정 요청\n유일한 사람 개입 (iteration 다르면 409)",
-      "group": "rl",
-      "shape": "actor",
+      "id": "c5",
+      "label": "5 시험 문제 고정",
+      "sub": "frozen_at 이후 변경 불가",
+      "group": "cr",
       "emphasis": true
     },
     {
-      "id": "r1",
-      "label": "릴리스",
-      "sub": "full·relay: 전체 (승인 시 기준·digest CAS)\ngateway·action: 카나리 (카나리 전엔 GATE_PASSED에서 PARKED)",
-      "group": "rl",
+      "id": "i6",
+      "label": "6 대상 자산 사본 (코드)",
+      "sub": "평가 케이스 등 판정 정보 제거",
+      "group": "im",
       "emphasis": true
     },
     {
-      "id": "v1",
-      "label": "Verifier",
-      "sub": "트리거 제외 구간 대비 이중차분\n순차 검정 · 악화 → 자동 롤백(CAS)\n미결 → 유지",
-      "group": "rl"
+      "id": "i7",
+      "label": "7 후보 작성 (LLM)",
+      "sub": "증분 패치 · 변경 종류 하나 · 30줄 이내",
+      "group": "im",
+      "emphasis": true
     },
     {
-      "id": "ho",
-      "label": "골든셋 · 노출 원장",
-      "sub": "Creator가 본 사례는 dev로 영구 강등\n목표·가드는 노출 안 된 사례에서 코드가 추출",
-      "shape": "db",
-      "tone": "gray"
+      "id": "i8",
+      "label": "8 거버넌스 검사 (코드)",
+      "sub": "수정 범위 · 유입 · 누출 · 등급 · 형식",
+      "group": "im",
+      "shape": "decision",
+      "tone": "red",
+      "emphasis": true
+    },
+    {
+      "id": "i9",
+      "label": "9 Registry 등록",
+      "sub": "draft → candidate · 생성 근거 첨부",
+      "group": "im",
+      "emphasis": true
     },
     {
       "id": "reg",
-      "label": "자산 저장소",
-      "sub": "draft → candidate → proposed → active → retired",
+      "label": "Registry",
+      "sub": "candidate (approved는 사람만)",
       "shape": "db",
-      "tone": "gray"
+      "group": "out"
     },
     {
-      "id": "pg",
-      "label": "PostgreSQL sel",
-      "sub": "케이스 · 평가 원장 · 리포트",
-      "shape": "db",
-      "tone": "gray"
-    },
-    {
-      "id": "ss",
-      "label": "셀프서비스 제출",
-      "sub": "제출자 권한 ∩ 평가 계정 (on-behalf-of)",
-      "shape": "actor"
+      "id": "t3",
+      "label": "③ 평가로",
+      "sub": "후보 ref + 기준 ref + 고정된 시험 문제\n결과는 통과 여부만 돌려받음",
+      "group": "out"
     }
   ],
   "edges": [
     {
-      "from": "jh",
-      "to": "a1",
-      "label": "기동"
-    },
-    {
-      "from": "a1",
-      "to": "a2"
-    },
-    {
-      "from": "jb",
-      "to": "a3",
-      "label": "기준선"
-    },
-    {
-      "from": "a2",
-      "to": "a3"
-    },
-    {
-      "from": "a3",
-      "to": "s1",
-      "label": "finding"
-    },
-    {
-      "from": "jd",
-      "to": "s1",
-      "label": "기한 초과 → 상태별 목적지"
-    },
-    {
-      "from": "s1",
-      "to": "s2"
-    },
-    {
-      "from": "s2",
-      "to": "pg"
-    },
-    {
-      "from": "s1",
-      "to": "c0",
-      "label": "OPEN",
-      "emphasis": true
-    },
-    {
-      "from": "c0",
+      "from": "f",
       "to": "c1",
       "emphasis": true
     },
     {
       "from": "c1",
-      "to": "c2",
-      "emphasis": true
+      "to": "led",
+      "label": "기록"
     },
     {
-      "from": "ho",
+      "from": "c1",
       "to": "c2",
-      "label": "판정 세트 추출"
+      "emphasis": true
     },
     {
       "from": "c2",
@@ -275,116 +146,75 @@
     },
     {
       "from": "c3",
-      "to": "reg",
-      "label": "draft 등록"
+      "to": "c4",
+      "label": "예",
+      "emphasis": true
     },
     {
       "from": "c3",
-      "to": "t1",
-      "label": "후보",
+      "to": "dev",
+      "label": "아니오"
+    },
+    {
+      "from": "led",
+      "to": "c4",
+      "label": "노출된 입력 제외"
+    },
+    {
+      "from": "c4",
+      "to": "c5",
       "emphasis": true
     },
     {
-      "from": "jg",
-      "to": "t1",
-      "label": "고정 세트 · 활성 버전 (R6)"
-    },
-    {
-      "from": "t1",
-      "to": "t2",
+      "from": "c5",
+      "to": "i6",
       "emphasis": true
     },
     {
-      "from": "t2",
-      "to": "e1",
-      "label": "사례별 결과",
+      "from": "i6",
+      "to": "i7",
       "emphasis": true
     },
     {
-      "from": "e1",
-      "to": "g1",
+      "from": "i7",
+      "to": "i8",
       "emphasis": true
     },
     {
-      "from": "g1",
-      "to": "c1",
-      "label": "FAIL (판정 예산 3회)",
+      "from": "i8",
+      "to": "i9",
+      "label": "통과",
+      "emphasis": true
+    },
+    {
+      "from": "i8",
+      "to": "i7",
+      "label": "실패 (2회까지)",
       "back": true
     },
     {
-      "from": "g1",
-      "to": "i1",
-      "label": "PASS",
+      "from": "i9",
+      "to": "reg"
+    },
+    {
+      "from": "i9",
+      "to": "t3",
       "emphasis": true
-    },
-    {
-      "from": "i1",
-      "to": "ad",
-      "label": "승인 요청",
-      "emphasis": true
-    },
-    {
-      "from": "ad",
-      "to": "c1",
-      "label": "수정 요청",
-      "back": true,
-      "dashed": true
-    },
-    {
-      "from": "ad",
-      "to": "r1",
-      "label": "승인",
-      "emphasis": true
-    },
-    {
-      "from": "r1",
-      "to": "reg",
-      "label": "활성 전환",
-      "emphasis": true
-    },
-    {
-      "from": "jv",
-      "to": "v1",
-      "label": "기동"
-    },
-    {
-      "from": "r1",
-      "to": "v1",
-      "label": "관측 시작"
-    },
-    {
-      "from": "v1",
-      "to": "s1",
-      "label": "VERIFIED · REGRESSED",
-      "back": true
-    },
-    {
-      "from": "ss",
-      "to": "t1",
-      "label": "제출",
-      "back": true
-    },
-    {
-      "from": "v1",
-      "to": "reg",
-      "label": "자동 롤백 (CAS)",
-      "dashed": true
     }
   ],
   "legend": [
     {
       "kind": "emphasis",
-      "label": "개선 한 사이클"
+      "label": "정상 경로"
     },
     {
-      "kind": "dashed",
-      "label": "사람이 되돌림 (수정 요청)"
+      "kind": "external",
+      "label": "② 밖으로 넘김"
     },
     {
       "kind": "edge",
-      "label": "주기 작업 · 보조 흐름"
+      "label": "보조 흐름"
     }
   ],
-  "style": "clean",
-  "font": "plain"
+  "style": "clean"
 }

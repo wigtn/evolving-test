@@ -1,103 +1,104 @@
 {
-  "title": "단계와 게이트 · Tester·Evaluator를 먼저, Creator·Improver는 바로 그 위에",
-  "subtitle": "날짜·인력은 M0에서 추정 · 점선 = 조건부",
+  "title": "SEL 일정 · Phase 기준",
+  "subtitle": "1차 오픈 2027.8 (SEL 포함) · ② 자산 생성은 12월 원칙 초안 → P3 알고리즘 · 굵은 선 = SEL 경로",
   "direction": "RIGHT",
-  "style": "clean",
-  "font": "plain",
+  "groups": [
+    {
+      "id": "base",
+      "label": "기반",
+      "tone": "gray"
+    },
+    {
+      "id": "sel",
+      "label": "SEL",
+      "tone": "violet"
+    },
+    {
+      "id": "open",
+      "label": "오픈",
+      "tone": "green"
+    }
+  ],
   "nodes": [
     {
-      "id": "m0",
-      "label": "M0 · 준비",
-      "sub": "Q7 대상 → Q6 원천 · Q5 평가 경로 · Q2\n파일럿 팀·대표 업무"
+      "id": "p0",
+      "label": "P0 정렬",
+      "sub": "10.27~11.13\n담당 배정 · Protocol v0",
+      "group": "base"
     },
     {
-      "id": "m1",
-      "label": "M1 · 분석",
-      "sub": "수집·run 조립·finding\n게이트: 조립 완전율, ID 안정성"
-    },
-    {
-      "id": "m2a",
-      "label": "M2a · 워킹 스켈레톤",
-      "sub": "Tester·Evaluator · 조회 업무 1개\n게이트: 변형 검출 · A/A 오판 ≤ 5% (59회)",
+      "id": "p1",
+      "label": "P1 기반",
+      "sub": "11.16~12.31\nRuntime · Registry v0 · Protocol v1\n② 원칙 초안 · ① 설계 착수",
+      "group": "base",
       "emphasis": true
     },
     {
-      "id": "m2b",
-      "label": "M2b · 하네스 완성",
-      "sub": "user simulator · 쓰기 시험 실행\n게이트: 백테스트 판별 (Q3)"
+      "id": "p2",
+      "label": "P2 실행",
+      "sub": "2027.1~3\n업무 담당의 첫 에이전트 (SEL 대상)",
+      "group": "base"
     },
     {
-      "id": "m2c",
-      "label": "M2c · Creator·Improver v0",
-      "sub": "결함 주입 완주(예외) → A/A 통과 후 실사용\n게이트: 채택 조건 (부족하면 dry-run)",
-      "emphasis": true,
-      "tone": "teal"
+      "id": "p3",
+      "label": "P3 개선",
+      "sub": "2027.2~5\n① 입력 · ② 생성 · ③ 평가 · ④ 반영\n완료: 개선 1사이클 시연",
+      "group": "sel",
+      "emphasis": true
     },
     {
-      "id": "m3",
-      "label": "M3 · 합성 세계 (Q5-b만)",
-      "sub": "world·suite 생성\n착수: Q5-b 결정"
+      "id": "p4",
+      "label": "P4 안정화",
+      "sub": "2027.6~7\n파일럿 · Dots 공존 경계",
+      "group": "open"
     },
     {
-      "id": "m4",
-      "label": "M4 · 셀프서비스 공개",
-      "sub": "제출 API·리포트·쿼터\n게이트: 파일럿 팀 단독 완료"
+      "id": "go",
+      "label": "1차 오픈",
+      "sub": "2027.8",
+      "group": "open",
+      "emphasis": true
     }
   ],
   "edges": [
     {
-      "from": "m0",
-      "to": "m1"
+      "from": "p0",
+      "to": "p1"
     },
     {
-      "from": "m0",
-      "to": "m2a",
-      "emphasis": true,
-      "label": "M1과 병행"
+      "from": "p1",
+      "to": "p2"
     },
     {
-      "from": "m2a",
-      "to": "m2c",
+      "from": "p1",
+      "to": "p3",
+      "label": "② 원칙 → 알고리즘",
       "emphasis": true
     },
     {
-      "from": "m1",
-      "to": "m2c",
-      "label": "finding"
+      "from": "p2",
+      "to": "p3",
+      "label": "대상 에이전트"
     },
     {
-      "from": "m2a",
-      "to": "m2b",
-      "label": "M2c와 병행"
+      "from": "p3",
+      "to": "p4",
+      "emphasis": true
     },
     {
-      "from": "m2c",
-      "to": "m3",
-      "dashed": true,
-      "label": "Q5-b"
-    },
-    {
-      "from": "m2b",
-      "to": "m4"
-    },
-    {
-      "from": "m2c",
-      "to": "m4"
-    },
-    {
-      "from": "m3",
-      "to": "m4",
-      "dashed": true
+      "from": "p4",
+      "to": "go",
+      "emphasis": true
     }
   ],
   "legend": [
     {
       "kind": "emphasis",
-      "label": "주 경로"
+      "label": "SEL 경로"
     },
     {
-      "kind": "dashed",
-      "label": "조건부"
+      "kind": "edge",
+      "label": "선행 관계"
     }
   ]
 }

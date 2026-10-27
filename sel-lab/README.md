@@ -2,6 +2,8 @@
 
 SEL(self-evolving loop)을 로컬에서 처음부터 끝까지 돌려보는 실험장. LangGraph + DeepAgents 워커, 가짜 SAP 세계, 결함 주입 자산 위에서
 **finding → Creator → Improver → Tester(쌍대) → Evaluator → Gate → 승인 → 릴리스 → Verifier**를 실행한다.
+
+> **역할 이름 (2026-10-28 기준 문서와의 대응).** 기준 구조는 ① 입력 파이프라인 → ② 자산 생성(Creator: 가설 + 시험 문제 선정, Improver: 후보 생성 + candidate 등록) → ③ 평가 → ④ 반영이다. 이 실험장의 코드에서는 `analyzer.py`가 ①, `sel.py`의 `_creator_*`가 가설, `build_eval_set`이 시험 문제 선정(Creator 단계의 코드), `_improver_*`와 정적 검사가 후보 생성(Improver), `tester.py` · `gate.py`가 ③, `approve` · `verify` · `auto_rollback`이 ④에 해당한다. 함수 이름은 아직 옛 이름 그대로다.
 설계 기준은 SEL 애플리케이션 설계 v0.1(케이스 상태머신, finding 계약, R1–R8, 게이트 G1–G4).
 
 docker가 필요 없다. Python 3.11 이상과 패키지 설치만 되면 된다.
@@ -125,7 +127,7 @@ DeepAgents `create_deep_agent`는 파일 도구(ls, read_file, write_file 등)�
 - 세션 기록에는 채점 항목 이름이 아니라 사용자 발화만 남긴다.
 - Creator 가설의 대상은 항상 현재 활성 버전으로 강제한다.
 - 노출 원장(`exposure` 테이블): Creator 증거로 들어간 입력의 해시를 남긴다. 같은 입력의 골든셋 사례는 held-out에 들어가지 않는다.
-- 판정 세트는 코드가 뽑는다. 목표 업무 유형은 증거에서 정하고(`target_kinds_by_code`), Creator가 낸 target_kinds·guard_kinds는 세트 선정에 쓰지 않는다.
+- 판정 세트는 코드가 뽑는다. 현행 버전으로 held-out을 2회 먼저 돌려(기준 실패 탐침) 실패한 사례를 목표, 모두 통과한 사례를 가드로 쓴다(`build_eval_set`). Creator가 낸 target_kinds·guard_kinds는 세트 선정에 쓰지 않는다. 운영 설계의 실패 서명 일치 필터는 아직 없다.
 
 ## PRD와 다른 점 (lab 단순화)
 
