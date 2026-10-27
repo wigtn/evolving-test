@@ -1,11 +1,11 @@
 {
   "title": "SEL · Agent Runtime VM 안의 평가·개선 루프",
-  "subtitle": "스케줄러 신호 → Creator → Tester → Evaluator → Improver · 자산·도구·DB 접근은 모두 게이트 경유 · 점선 = 미결 경로",
-  "direction": "RIGHT",
+  "subtitle": "모든 주기 작업은 스케줄러가 기동 · 개선안은 반드시 사람 승인(Admin UI)을 거쳐 활성 · 점선 = 미결 경로",
+  "direction": "DOWN",
   "groups": [
     {
       "id": "src",
-      "label": "실행 기록·세션 기록"
+      "label": "실행 기록 · 세션 기록"
     },
     {
       "id": "vm",
@@ -40,7 +40,7 @@
     },
     {
       "id": "session",
-      "label": "세션 기록·사용 원장",
+      "label": "세션 기록 · 사용 원장",
       "sub": "수정·재요청 · 자산·도구 호출",
       "group": "src",
       "shape": "db",
@@ -49,19 +49,27 @@
     {
       "id": "sched",
       "label": "스케줄러",
-      "sub": "정기 · 버전 등록 · 제출",
-      "group": "vm"
+      "sub": "매시 분석 · 매일 골든셋·기준선\n6시간 Verifier · 10분 기한 감시",
+      "group": "vm",
+      "tone": "orange"
     },
     {
       "id": "front",
-      "label": "Creator 앞단",
-      "sub": "finding · 고정 ID · 상태 추적",
+      "label": "Creator 앞단 · 폴백 분석기",
+      "sub": "R1–R8 · finding · 고정 ID",
       "group": "vm"
+    },
+    {
+      "id": "svc",
+      "label": "SEL 서비스",
+      "sub": "케이스 상태머신 · 기한 · outbox",
+      "group": "vm",
+      "emphasis": true
     },
     {
       "id": "creator",
       "label": "Creator",
-      "sub": "진단 · 개선안(패치·마이너)",
+      "sub": "가설 · 개선안(패치·마이너)",
       "group": "vm",
       "emphasis": true
     },
@@ -81,24 +89,31 @@
     },
     {
       "id": "evaluator",
-      "label": "Evaluator",
-      "sub": "규칙 검사 → judge · 버전 비교",
+      "label": "Evaluator · 게이트",
+      "sub": "규칙 검사 → judge · G1–G4",
       "group": "vm",
       "emphasis": true
     },
     {
       "id": "improver",
       "label": "Improver",
-      "sub": "등록·상신 · 승인 요청",
+      "sub": "제안 상태 등록 · 상신",
       "group": "vm",
       "emphasis": true
     },
     {
       "id": "admin",
       "label": "SEL Admin UI",
-      "sub": "사람 승인 → 활성 전환",
+      "sub": "사람 승인 · 반려 · 수정 요청",
       "group": "vm",
-      "shape": "actor"
+      "shape": "actor",
+      "emphasis": true
+    },
+    {
+      "id": "verifier",
+      "label": "Verifier",
+      "sub": "반영 전후 발생률 비교",
+      "group": "vm"
     },
     {
       "id": "entry",
@@ -127,14 +142,14 @@
     {
       "id": "assets",
       "label": "자산 저장소",
-      "sub": "Agent·SKILL·Prompt·Tool",
+      "sub": "Agent · SKILL · Prompt · Tool",
       "group": "store",
       "shape": "db"
     },
     {
       "id": "pg",
       "label": "PostgreSQL",
-      "sub": "평가 작업 원장·리포트",
+      "sub": "케이스 · 평가 원장 · 리포트",
       "group": "store",
       "shape": "db"
     },
@@ -163,13 +178,34 @@
     },
     {
       "from": "sched",
-      "to": "creator",
-      "label": "신호"
+      "to": "front",
+      "label": "매시 분석 · 매일 기준선"
+    },
+    {
+      "from": "sched",
+      "to": "svc",
+      "label": "10분 기한 감시"
+    },
+    {
+      "from": "sched",
+      "to": "tester",
+      "label": "매일 정기 골든셋 (R6)"
+    },
+    {
+      "from": "sched",
+      "to": "verifier",
+      "label": "6시간"
     },
     {
       "from": "front",
+      "to": "svc",
+      "label": "finding → 케이스 개설"
+    },
+    {
+      "from": "svc",
       "to": "creator",
-      "label": "finding"
+      "label": "OPEN",
+      "emphasis": true
     },
     {
       "from": "creator",
@@ -185,7 +221,7 @@
     {
       "from": "sandbox",
       "to": "entry",
-      "label": "자산·도구 요청"
+      "label": "자산·도구 (평가 계정)"
     },
     {
       "from": "entry",
@@ -215,18 +251,30 @@
     {
       "from": "evaluator",
       "to": "improver",
-      "label": "판정 통과",
+      "label": "게이트 통과",
       "emphasis": true
     },
     {
       "from": "improver",
       "to": "admin",
-      "label": "승인 요청"
+      "label": "승인 요청",
+      "emphasis": true
     },
     {
-      "from": "improver",
+      "from": "admin",
       "to": "dbc",
-      "label": "새 버전 등록"
+      "label": "승인 → 활성 전환",
+      "emphasis": true
+    },
+    {
+      "from": "verifier",
+      "to": "svc",
+      "label": "VERIFIED · REGRESSED"
+    },
+    {
+      "from": "svc",
+      "to": "dbc",
+      "label": "케이스·이벤트"
     },
     {
       "from": "dbc",
@@ -235,17 +283,12 @@
     {
       "from": "dbc",
       "to": "pg"
-    },
-    {
-      "from": "admin",
-      "to": "dbc",
-      "label": "승인 → 활성"
     }
   ],
   "legend": [
     {
       "kind": "emphasis",
-      "label": "SEL 한 사이클"
+      "label": "SEL 한 사이클 (사람 승인 필수)"
     },
     {
       "kind": "dashed",

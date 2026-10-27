@@ -25,7 +25,7 @@ SEL은 Agent Runtime VM(Aegra) 안에서 스케줄러 신호로 Creator → Test
 ## 설계 불변식 (바꾸려면 PRD 개정과 리뷰 필요)
 
 - Tester·Evaluator를 Creator·Improver보다 먼저 만든다. M2a 게이트 통과 전에는 개선 루프를 돌리지 않는다.
-- 판정은 케이스별 짝 비교. 회귀 정의는 PRD 6장 판정 규칙 하나만 쓴다.
+- 판정은 PRD 6장 게이트 통계(G1–G4, 짝 차이, MDI) 하나만 쓴다. 케이스 단위 회귀 검사는 보조 조건.
 - judge는 고정. 규칙으로 판정할 수 있는 검사는 judge 앞에 둔다.
 - finding당 증분 개선안 하나, release line 하나.
 - 판정용 held-out은 사람이 관리. SEL 패치는 SKILL의 평가 케이스 필드를 바꾸지 않는다.
