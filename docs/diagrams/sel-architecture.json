@@ -1,6 +1,6 @@
 {
   "title": "SEL · Agent Runtime VM 안의 평가·개선 루프",
-  "subtitle": "모든 주기 작업은 스케줄러가 기동 · 개선안은 반드시 사람 승인(Admin UI)을 거쳐 활성 · 점선 = 미결 경로",
+  "subtitle": "스케줄러가 깨우면 분석기가 원천을 조회(pull) · 개선안은 반드시 사람 승인(Admin UI)을 거쳐 활성 · 점선 = 미결 경로",
   "direction": "DOWN",
   "groups": [
     {
@@ -56,7 +56,7 @@
     {
       "id": "front",
       "label": "Creator 앞단 · 폴백 분석기",
-      "sub": "R1–R8 · finding · 고정 ID",
+      "sub": "원천 조회 → R1–R8 집계 → finding",
       "group": "vm"
     },
     {
@@ -162,24 +162,28 @@
   ],
   "edges": [
     {
-      "from": "ard",
-      "to": "front",
-      "label": "log_query"
+      "from": "front",
+      "to": "ard",
+      "label": "조회 (log_query)",
+      "back": true
     },
     {
-      "from": "phoenix",
-      "to": "front",
+      "from": "front",
+      "to": "phoenix",
+      "label": "조회 (정본 없을 때)",
       "dashed": true,
-      "label": "정본 없을 때"
+      "back": true
     },
     {
-      "from": "session",
-      "to": "front"
+      "from": "front",
+      "to": "session",
+      "label": "조회",
+      "back": true
     },
     {
       "from": "sched",
       "to": "front",
-      "label": "매시 분석 · 매일 기준선"
+      "label": "매시 기동 · 매일 기준선"
     },
     {
       "from": "sched",

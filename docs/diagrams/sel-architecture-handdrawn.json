@@ -1,64 +1,306 @@
 {
   "title": "SEL · Agent Runtime VM 안의 평가·개선 루프",
-  "subtitle": "모든 주기 작업은 스케줄러가 기동 · 개선안은 반드시 사람 승인(Admin UI)을 거쳐 활성 · 점선 = 미결 경로",
+  "subtitle": "스케줄러가 깨우면 분석기가 원천을 조회(pull) · 개선안은 반드시 사람 승인(Admin UI)을 거쳐 활성 · 점선 = 미결 경로",
   "direction": "DOWN",
   "groups": [
-    { "id": "src", "label": "실행 기록 · 세션 기록" },
-    { "id": "vm", "label": "Agent Runtime VM (Aegra)", "tone": "violet" },
-    { "id": "gate", "label": "게이트", "tone": "blue" },
-    { "id": "store", "label": "저장소 (Database Connector 뒤)" }
+    {
+      "id": "src",
+      "label": "실행 기록 · 세션 기록"
+    },
+    {
+      "id": "vm",
+      "label": "Agent Runtime VM (Aegra)",
+      "tone": "violet"
+    },
+    {
+      "id": "gate",
+      "label": "게이트",
+      "tone": "blue"
+    },
+    {
+      "id": "store",
+      "label": "저장소 (Database Connector 뒤)"
+    }
   ],
   "nodes": [
-    { "id": "ard", "label": "ARD 실행 기록 정본", "sub": "운영 trace 유무 Q7 · Q6", "group": "src", "shape": "db", "tone": "gray" },
-    { "id": "phoenix", "label": "Phoenix 사본", "sub": "1·2등급 구조만 · 타 팀", "group": "src", "shape": "external" },
-    { "id": "session", "label": "세션 기록 · 사용 원장", "sub": "수정·재요청 · 자산·도구 호출", "group": "src", "shape": "db", "tone": "gray" },
-    { "id": "sched", "label": "스케줄러", "sub": "매시 분석 · 매일 골든셋·기준선\n6시간 Verifier · 10분 기한 감시", "group": "vm", "tone": "orange" },
-    { "id": "front", "label": "Creator 앞단 · 폴백 분석기", "sub": "R1–R8 · finding · 고정 ID", "group": "vm" },
-    { "id": "svc", "label": "SEL 서비스", "sub": "케이스 상태머신 · 기한 · outbox", "group": "vm", "emphasis": true },
-    { "id": "creator", "label": "Creator", "sub": "가설 · 개선안(패치·마이너)", "group": "vm", "emphasis": true },
-    { "id": "tester", "label": "Tester", "sub": "기존·후보 짝 실행 · k회", "group": "vm", "emphasis": true },
-    { "id": "sandbox", "label": "평가 샌드박스", "sub": "standard-v1 · 평가 계정", "group": "vm", "emphasis": true },
-    { "id": "evaluator", "label": "Evaluator · 게이트", "sub": "규칙 검사 → judge · G1–G4", "group": "vm", "emphasis": true },
-    { "id": "improver", "label": "Improver", "sub": "제안 상태 등록 · 상신", "group": "vm", "emphasis": true },
-    { "id": "admin", "label": "SEL Admin UI", "sub": "사람 승인 · 반려 · 수정 요청", "group": "vm", "shape": "actor", "emphasis": true },
-    { "id": "verifier", "label": "Verifier", "sub": "반영 전후 발생률 비교", "group": "vm" },
-    { "id": "entry", "label": "공통 진입점", "sub": "권한 판정", "group": "gate" },
-    { "id": "assetgw", "label": "자산 MCP Gateway", "sub": "기존·후보 버전 조회", "group": "gate" },
-    { "id": "tools", "label": "Tools Gateway", "sub": "조회 실제 · 쓰기 시험 실행 (Q5-a)", "group": "gate" },
-    { "id": "dbc", "label": "Database Connector", "sub": "단일 DB 문", "group": "gate" },
-    { "id": "assets", "label": "자산 저장소", "sub": "Agent · SKILL · Prompt · Tool", "group": "store", "shape": "db" },
-    { "id": "pg", "label": "PostgreSQL", "sub": "케이스 · 평가 원장 · 리포트", "group": "store", "shape": "db" },
-    { "id": "world", "label": "합성 세계", "sub": "Q5-b일 때만", "shape": "external" }
+    {
+      "id": "ard",
+      "label": "ARD 실행 기록 정본",
+      "sub": "운영 trace 유무 Q7 · Q6",
+      "group": "src",
+      "shape": "db",
+      "tone": "gray"
+    },
+    {
+      "id": "phoenix",
+      "label": "Phoenix 사본",
+      "sub": "1·2등급 구조만 · 타 팀",
+      "group": "src",
+      "shape": "external"
+    },
+    {
+      "id": "session",
+      "label": "세션 기록 · 사용 원장",
+      "sub": "수정·재요청 · 자산·도구 호출",
+      "group": "src",
+      "shape": "db",
+      "tone": "gray"
+    },
+    {
+      "id": "sched",
+      "label": "스케줄러",
+      "sub": "매시 분석 · 매일 골든셋·기준선\n6시간 Verifier · 10분 기한 감시",
+      "group": "vm",
+      "tone": "orange"
+    },
+    {
+      "id": "front",
+      "label": "Creator 앞단 · 폴백 분석기",
+      "sub": "원천 조회 → R1–R8 집계 → finding",
+      "group": "vm"
+    },
+    {
+      "id": "svc",
+      "label": "SEL 서비스",
+      "sub": "케이스 상태머신 · 기한 · outbox",
+      "group": "vm",
+      "emphasis": true
+    },
+    {
+      "id": "creator",
+      "label": "Creator",
+      "sub": "가설 · 개선안(패치·마이너)",
+      "group": "vm",
+      "emphasis": true
+    },
+    {
+      "id": "tester",
+      "label": "Tester",
+      "sub": "기존·후보 짝 실행 · k회",
+      "group": "vm",
+      "emphasis": true
+    },
+    {
+      "id": "sandbox",
+      "label": "평가 샌드박스",
+      "sub": "standard-v1 · 평가 계정",
+      "group": "vm",
+      "emphasis": true
+    },
+    {
+      "id": "evaluator",
+      "label": "Evaluator · 게이트",
+      "sub": "규칙 검사 → judge · G1–G4",
+      "group": "vm",
+      "emphasis": true
+    },
+    {
+      "id": "improver",
+      "label": "Improver",
+      "sub": "제안 상태 등록 · 상신",
+      "group": "vm",
+      "emphasis": true
+    },
+    {
+      "id": "admin",
+      "label": "SEL Admin UI",
+      "sub": "사람 승인 · 반려 · 수정 요청",
+      "group": "vm",
+      "shape": "actor",
+      "emphasis": true
+    },
+    {
+      "id": "verifier",
+      "label": "Verifier",
+      "sub": "반영 전후 발생률 비교",
+      "group": "vm"
+    },
+    {
+      "id": "entry",
+      "label": "공통 진입점",
+      "sub": "권한 판정",
+      "group": "gate"
+    },
+    {
+      "id": "assetgw",
+      "label": "자산 MCP Gateway",
+      "sub": "기존·후보 버전 조회",
+      "group": "gate"
+    },
+    {
+      "id": "tools",
+      "label": "Tools Gateway",
+      "sub": "조회 실제 · 쓰기 시험 실행 (Q5-a)",
+      "group": "gate"
+    },
+    {
+      "id": "dbc",
+      "label": "Database Connector",
+      "sub": "단일 DB 문",
+      "group": "gate"
+    },
+    {
+      "id": "assets",
+      "label": "자산 저장소",
+      "sub": "Agent · SKILL · Prompt · Tool",
+      "group": "store",
+      "shape": "db"
+    },
+    {
+      "id": "pg",
+      "label": "PostgreSQL",
+      "sub": "케이스 · 평가 원장 · 리포트",
+      "group": "store",
+      "shape": "db"
+    },
+    {
+      "id": "world",
+      "label": "합성 세계",
+      "sub": "Q5-b일 때만",
+      "shape": "external"
+    }
   ],
   "edges": [
-    { "from": "ard", "to": "front", "label": "log_query" },
-    { "from": "phoenix", "to": "front", "dashed": true, "label": "정본 없을 때" },
-    { "from": "session", "to": "front" },
-    { "from": "sched", "to": "front", "label": "매시 분석 · 매일 기준선" },
-    { "from": "sched", "to": "svc", "label": "10분 기한 감시" },
-    { "from": "sched", "to": "tester", "label": "매일 정기 골든셋 (R6)" },
-    { "from": "sched", "to": "verifier", "label": "6시간" },
-    { "from": "front", "to": "svc", "label": "finding → 케이스 개설" },
-    { "from": "svc", "to": "creator", "label": "OPEN", "emphasis": true },
-    { "from": "creator", "to": "tester", "label": "개선안", "emphasis": true },
-    { "from": "tester", "to": "sandbox", "emphasis": true },
-    { "from": "sandbox", "to": "entry", "label": "자산·도구 (평가 계정)" },
-    { "from": "entry", "to": "assetgw" },
-    { "from": "assetgw", "to": "tools", "label": "도구 위임" },
-    { "from": "assetgw", "to": "dbc", "label": "자산" },
-    { "from": "tools", "to": "world", "dashed": true },
-    { "from": "sandbox", "to": "evaluator", "label": "케이스별 결과", "emphasis": true },
-    { "from": "evaluator", "to": "improver", "label": "게이트 통과", "emphasis": true },
-    { "from": "improver", "to": "admin", "label": "승인 요청", "emphasis": true },
-    { "from": "admin", "to": "dbc", "label": "승인 → 활성 전환", "emphasis": true },
-    { "from": "verifier", "to": "svc", "label": "VERIFIED · REGRESSED" },
-    { "from": "svc", "to": "dbc", "label": "케이스·이벤트" },
-    { "from": "dbc", "to": "assets" },
-    { "from": "dbc", "to": "pg" }
+    {
+      "from": "front",
+      "to": "ard",
+      "label": "조회 (log_query)",
+      "back": true
+    },
+    {
+      "from": "front",
+      "to": "phoenix",
+      "label": "조회 (정본 없을 때)",
+      "dashed": true,
+      "back": true
+    },
+    {
+      "from": "front",
+      "to": "session",
+      "label": "조회",
+      "back": true
+    },
+    {
+      "from": "sched",
+      "to": "front",
+      "label": "매시 기동 · 매일 기준선"
+    },
+    {
+      "from": "sched",
+      "to": "svc",
+      "label": "10분 기한 감시"
+    },
+    {
+      "from": "sched",
+      "to": "tester",
+      "label": "매일 정기 골든셋 (R6)"
+    },
+    {
+      "from": "sched",
+      "to": "verifier",
+      "label": "6시간"
+    },
+    {
+      "from": "front",
+      "to": "svc",
+      "label": "finding → 케이스 개설"
+    },
+    {
+      "from": "svc",
+      "to": "creator",
+      "label": "OPEN",
+      "emphasis": true
+    },
+    {
+      "from": "creator",
+      "to": "tester",
+      "label": "개선안",
+      "emphasis": true
+    },
+    {
+      "from": "tester",
+      "to": "sandbox",
+      "emphasis": true
+    },
+    {
+      "from": "sandbox",
+      "to": "entry",
+      "label": "자산·도구 (평가 계정)"
+    },
+    {
+      "from": "entry",
+      "to": "assetgw"
+    },
+    {
+      "from": "assetgw",
+      "to": "tools",
+      "label": "도구 위임"
+    },
+    {
+      "from": "assetgw",
+      "to": "dbc",
+      "label": "자산"
+    },
+    {
+      "from": "tools",
+      "to": "world",
+      "dashed": true
+    },
+    {
+      "from": "sandbox",
+      "to": "evaluator",
+      "label": "케이스별 결과",
+      "emphasis": true
+    },
+    {
+      "from": "evaluator",
+      "to": "improver",
+      "label": "게이트 통과",
+      "emphasis": true
+    },
+    {
+      "from": "improver",
+      "to": "admin",
+      "label": "승인 요청",
+      "emphasis": true
+    },
+    {
+      "from": "admin",
+      "to": "dbc",
+      "label": "승인 → 활성 전환",
+      "emphasis": true
+    },
+    {
+      "from": "verifier",
+      "to": "svc",
+      "label": "VERIFIED · REGRESSED"
+    },
+    {
+      "from": "svc",
+      "to": "dbc",
+      "label": "케이스·이벤트"
+    },
+    {
+      "from": "dbc",
+      "to": "assets"
+    },
+    {
+      "from": "dbc",
+      "to": "pg"
+    }
   ],
   "legend": [
-    { "kind": "emphasis", "label": "SEL 한 사이클 (사람 승인 필수)" },
-    { "kind": "dashed", "label": "미결 경로 (Q5·Q6)" },
-    { "kind": "external", "label": "타 팀·조건부" }
+    {
+      "kind": "emphasis",
+      "label": "SEL 한 사이클 (사람 승인 필수)"
+    },
+    {
+      "kind": "dashed",
+      "label": "미결 경로 (Q5·Q6)"
+    },
+    {
+      "kind": "external",
+      "label": "타 팀·조건부"
+    }
   ]
 }
