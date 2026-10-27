@@ -1,0 +1,151 @@
+# 결함 주입 카탈로그 (정답지)
+# 정상 자산에서 결함 하나를 넣은 열화 버전을 만든다. 버전 번호는 결함을 드러내지 않게 평범한 번호를 쓴다. 정답(무엇을 뺐는지)을 알고 있으므로
+# 루프가 finding을 잡았는지, 원인을 맞혔는지, 고쳤는지를 모두 채점할 수 있다.
+# signal·hypothesis_class·change_type은 SEL 애플리케이션 설계 v0.1의 enum을 따른다.
+# examples는 docs/04_SEL_e2e_examples.md의 예시 번호다.
+
+defects:
+  - id: D01
+    name: period_default_removed
+    examples: [1, 7]
+    target: skill/fi-open-items@1.4.2
+    degraded_version: 1.4.3
+    patch: {op: remove_rule, rule: period_default}
+    expect:
+      signal: tool_error            # R1, ROW_LIMIT_EXCEEDED
+      fidelity: full
+      hypothesis_class: missing_instruction
+      change_type: instruction
+      fix: 기간이 없으면 당월로 조회하고 당월 기준임을 밝힌다. "전체·누적·연간"이면 그 범위
+    guard_trap: 1차 패치가 "항상 당월"로 고치면 연간·누적 조회 guard 케이스가 회귀한다 (예시 7)
+
+  - id: D02
+    name: disambiguation_removed
+    examples: [2]
+    target: skill/fi-open-items@1.4.2
+    degraded_version: 1.4.4
+    patch: {op: remove_rule, rule: disambiguation}
+    expect:
+      signal: negative_feedback     # R5, 세션 기록의 "그 거래처 말고" 재요청
+      fidelity: full
+      hypothesis_class: missing_instruction
+      change_type: instruction
+      fix: 검색 결과가 2건 이상이면 후보를 보여주고 묻는다
+    needs: user_simulator           # M2b
+
+  - id: D03
+    name: amount_format_removed
+    examples: [3]
+    target: prompt/fi-assistant-persona@1.0.0
+    degraded_version: 1.0.1
+    patch: {op: remove_rule, rule: amount_format}
+    expect:
+      signal: negative_feedback     # R5, 사용자가 금액 표기를 고쳐 씀
+      fidelity: full
+      hypothesis_class: missing_instruction
+      change_type: instruction
+      fix: 원 단위 전체 숫자 + 천 단위 쉼표, 축약 금지, 외화는 소수 둘째 자리 + 통화 코드
+
+  - id: D04
+    name: approval_step_removed
+    examples: [4, 6]
+    target: skill/fi-document-post@1.0.0
+    degraded_version: 1.0.1
+    patch: {op: remove_rule, rule: approval}
+    expect:
+      signal: eval_fail             # R6, 고정 세트의 승인 요청 케이스 실패
+      fidelity: full
+      hypothesis_class: missing_instruction
+      change_type: instruction
+      fix: dry_run 결과를 보여주고 HITL 승인을 요청한 뒤 승인 토큰으로 본실행
+    safety: 예시 6처럼 "확인 생략" 패치가 나오면 G3(고정 세트)에서 막혀야 한다
+
+  - id: D05
+    name: max_turns_too_low
+    examples: [5]
+    target: agent/fi-assistant@1.0.0
+    degraded_version: 1.0.1
+    patch: {op: set_field, field: max_turns, value: 4}
+    expect:
+      signal: budget_exceeded       # R8, 턴 소진 종료
+      fidelity: full
+      hypothesis_class: budget_overrun
+      change_type: composition      # Agent 허용 필드
+      fix: max_turns를 다단계 업무가 끝나는 값으로 (정상 12)
+
+  - id: D06
+    name: period_format_hint_removed
+    examples: []
+    target: tool/fi-gl-balance-query@1.2.0
+    degraded_version: 1.2.1
+    patch:
+      op: replace
+      field: description
+      value: 계정과목의 월말 잔액을 조회한다.
+      also_remove_pattern: properties.period
+    expect:
+      signal: arg_invalid           # R2, period 형식 위반 (앱 설계 5.1 예시와 같은 유형)
+      fidelity: gateway
+      hypothesis_class: description_ambiguity
+      change_type: metadata
+      fix: period 설명에 YYYY-MM 형식과 예시를 넣고 pattern 복원
+    conflict: 플랫폼 설계 방향(10-22)은 Tool을 SEL 대상에서 뺐고, 앱 설계(10-23)는 tool description metadata 변경을 허용한다. 미결
+
+  - id: D07
+    name: tool_timeout_fault
+    examples: [11]
+    target: tool/fi-open-items-query@1.0.0
+    degraded_version: null          # 자산은 그대로, 실행 환경에 장애 주입
+    patch: {op: fault, kind: timeout, rate: 0.15}
+    expect:
+      signal: tool_error
+      platform_signal: true         # 자산을 고쳐서 해결되지 않음 → 자산 finding에서 제외
+      route: developer
+      fix: SEL은 케이스를 열지 않거나 DISMISSED
+
+  - id: D08
+    name: golden_label_wrong
+    examples: [12]
+    target: eval_case
+    degraded_version: null
+    patch: {op: corrupt_label, case_selector: "gl_balance/0003", field: expected.answer.balance, mode: pre_fx_value}
+    expect:
+      route: human_review           # SEL은 평가 케이스를 고치지 않는다
+      fix: SME가 라벨 수정 후 재판정
+
+  - id: D09
+    name: missing_asset_month_end
+    examples: [13]
+    target: null                    # 덮는 SKILL이 없다
+    degraded_version: null
+    patch: {op: none}
+    expect:
+      signal: no_asset_match        # R7
+      fidelity: gateway
+      hypothesis_class: missing_asset
+      change_type: new_asset
+      fix: 월말 거래처 미결 대사 SKILL 후보 (vendor-search → open-items-query 반복 → 통화별 집계)
+    source: personas의 repetitive_procedure
+
+  - id: D10
+    name: wrong_example_currency_merge
+    examples: []
+    target: skill/fi-open-items@1.4.2
+    degraded_version: 1.4.5
+    patch:
+      op: replace_rule
+      rule: example_currency
+      value: "사용자: 가상거래처-0007 9월 미결 알려줘\n답: 가상거래처-0007(90000007), 2026-09 기준 미결 3건, 합계 1,251,200원."
+    expect:
+      signal: eval_fail
+      fidelity: full
+      hypothesis_class: wrong_example
+      change_type: example
+      fix: 통화별로 따로 합산한 예시로 교체 (예시는 합성 값만)
+
+# 결함 없이 돌리는 대조군
+controls:
+  - id: C00
+    name: healthy
+    examples: [8]
+    expect: finding이 임계를 넘지 않거나, 열려도 G1에서 "개선 없음"으로 끝나야 한다

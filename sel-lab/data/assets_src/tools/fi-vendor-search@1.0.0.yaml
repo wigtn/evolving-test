@@ -1,0 +1,12 @@
+asset_ref: tool/fi-vendor-search@1.0.0
+kind: tool
+mode: read
+description: 거래처 이름 일부로 거래처를 찾는다. 결과가 여러 건일 수 있다.
+input_schema:
+  type: object
+  required: [name_query]
+  properties:
+    name_query: {type: string, description: 거래처 이름의 일부}
+    bukrs: {type: string, description: 회사코드. 없으면 전체}
+output: {columns: [LIFNR, NAME1, ORT01, BUKRS]}
+required_role: fi.read

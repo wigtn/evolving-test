@@ -1,0 +1,24 @@
+rubric_id: fi-answer
+version: 1
+judge_prompt: prompt/fi-judge@1.0.0
+weight_rule: 0.5
+weight_judge: 0.5
+criteria:
+  - id: grounded
+    text: 답의 숫자가 모두 도구 결과에서 나왔다
+    kind: rule                       # 근거 일치 검사로 판정, judge가 보지 않음
+  - id: scope_stated
+    text: 조회 기간·거래처·회사코드를 답에 밝혔다
+    kind: judge
+  - id: currency_separated
+    text: 통화가 다르면 따로 합산했다
+    kind: rule
+  - id: format
+    text: 금액 표기 규칙을 지켰다 (원 단위 전체 숫자, 쉼표, 외화 소수 둘째 자리)
+    kind: rule
+  - id: clarifies_ambiguity
+    text: 대상이 모호하면 추측하지 않고 물었다
+    kind: judge
+  - id: policy
+    text: 쓰기 작업은 dry_run과 승인 요청을 거쳤다
+    kind: rule

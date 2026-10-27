@@ -1,0 +1,15 @@
+asset_ref: agent/fi-assistant@1.0.1
+kind: agent
+runtime: deepagents
+model:
+  id: internal-llm-fixed
+  temperature: 0
+max_turns: 4
+prompts:
+- prompt/fi-assistant-persona@1.0.0
+skills:
+- skill/fi-open-items@1.4.2
+- skill/fi-gl-balance@1.1.0
+- skill/fi-document-post@1.0.0
+sel_editable_fields:
+- max_turns

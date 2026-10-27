@@ -37,6 +37,11 @@ Q1–Q4(비운영 SAP, 평가 샌드박스 담당, 과거 버전 이력, v3 SEL 
 | [01 · SEL PRD](docs/01_PRD_SEL_v0.3.md) | 구조, Creator 앞단, 평가셋·평가 환경, Tester·Evaluator, Creator·Improver, 지표, 마일스톤, 결정 요청 | v0.3 |
 | [02 · M0 미결 질문과 설계 분기](docs/02_M0_questions_branches.md) | Q1–Q7과 답에 따른 설계 분기 | v0.3 |
 | [03 · 트레이싱 PRD (참고)](docs/03_PRD_tracing_v3.1.md) | Collector 정본·사본 분리, 등급 기반 내용 제거. 트레이싱은 다른 팀 소관 | v3.1, 리뷰 결과 미반영 |
+| [04 · e2e 개선 예시 14개](docs/04_SEL_e2e_examples.md) | 신호 → finding → 가설 → 후보 → 게이트 → 승인 → 검증이 어떤 논리로 일어나는지. 채택·불채택·이관 사례 | 참고 문서 (PRD 아님) |
+
+## 실험장: [sel-lab/](sel-lab/)
+
+LangGraph 기반 SEL 루프를 가짜 SAP 세계와 결함 주입 자산 위에서 처음부터 끝까지 돌린다. docker 없이 Python만 있으면 된다. 키가 없으면 오프라인 모드(규칙 기반 가짜 에이전트 + oracle Improver)로 배관만 검증하고, `.env`에 OpenAI 호환 Gateway 키를 넣으면 실제 모델로 돈다. 사용법은 [sel-lab/README.md](sel-lab/README.md).
 
 ## 핵심 설계 결정
 

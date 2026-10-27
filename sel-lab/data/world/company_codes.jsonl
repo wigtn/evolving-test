@@ -1,0 +1,2 @@
+{"bukrs": "9100", "name": "가상법인-A", "currency": "KRW"}
+{"bukrs": "9200", "name": "가상법인-B", "currency": "KRW", "foreign": ["USD"]}

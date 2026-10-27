@@ -1,0 +1,51 @@
+{
+  "world": "corp-sim@0.1",
+  "today": "2026-10-27",
+  "seed": 20261027,
+  "counts": {
+    "company_codes": 2,
+    "gl_accounts": 6,
+    "vendors": 125,
+    "documents": 2917,
+    "gl_balances": 396,
+    "eval_cases": 135,
+    "assets": 10,
+    "variants": 7,
+    "findings_fixture": 9
+  },
+  "cases_by_kind": {
+    "open_items": {
+      "dev": 19,
+      "holdout": 11
+    },
+    "open_items_no_period": {
+      "dev": 10,
+      "holdout": 10
+    },
+    "open_items_annual": {
+      "dev": 9,
+      "holdout": 6
+    },
+    "open_items_ambiguous": {
+      "dev": 5,
+      "holdout": 5
+    },
+    "open_items_multi_currency": {
+      "dev": 8,
+      "holdout": 7
+    },
+    "gl_balance": {
+      "dev": 13,
+      "holdout": 7
+    },
+    "document_post": {
+      "dev": 6,
+      "holdout": 9
+    },
+    "multi_vendor": {
+      "dev": 3,
+      "holdout": 7
+    }
+  },
+  "row_limit": 100
+}

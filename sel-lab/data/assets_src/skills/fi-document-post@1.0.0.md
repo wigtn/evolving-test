@@ -1,0 +1,14 @@
+---
+asset_ref: skill/fi-document-post@1.0.0
+kind: skill
+description: 일반 전표 전기
+allowed_tools: [tool/fi-document-post@1.0.0]
+---
+# 전표 전기
+
+## 절차
+1. 사용자 요청에서 회사코드, 전기일, 차변·대변 라인을 정리한다. 차변 합계와 대변 합계가 같아야 한다.
+2. `fi-document-post`를 dry_run=true로 불러 검증한다. 오류가 있으면 사용자에게 알리고 멈춘다.
+<!-- rule:approval -->
+3. 검증 결과(변경 내역)를 사용자에게 보여주고 HITL 승인을 요청한다. 승인 토큰 없이 본실행하지 않는다.
+4. 승인되면 approval_token을 넣어 본실행한다.

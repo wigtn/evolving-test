@@ -1,0 +1,32 @@
+asset_ref: tool/fi-gl-balance-query@1.2.0
+kind: tool
+mode: read
+description: 계정과목의 월말 잔액을 조회한다. period는 YYYY-MM 형식이다 (예 2026-09).
+input_schema:
+  type: object
+  required:
+  - saknr
+  - bukrs
+  - period
+  properties:
+    saknr:
+      type: string
+      pattern: ^9\d{6}$
+      description: 계정과목 번호
+    bukrs:
+      type: string
+      description: 회사코드
+    period:
+      type: string
+      pattern: ^\d{4}-\d{2}$
+      description: 조회 월. YYYY-MM 형식
+errors:
+- ARG_INVALID
+- ACCOUNT_NOT_FOUND
+output:
+  columns:
+  - SAKNR
+  - PERIOD
+  - BALANCE
+  - WAERS
+required_role: fi.read

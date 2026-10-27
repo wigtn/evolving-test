@@ -1,0 +1,6 @@
+{"saknr": "9510000", "text": "가상소모품비", "kind": "expense"}
+{"saknr": "9520000", "text": "가상운반비", "kind": "expense"}
+{"saknr": "9530000", "text": "가상외주가공비", "kind": "expense"}
+{"saknr": "9540000", "text": "가상지급수수료", "kind": "expense"}
+{"saknr": "9550000", "text": "가상수선비", "kind": "expense"}
+{"saknr": "9210000", "text": "가상외상매입금", "kind": "payable"}

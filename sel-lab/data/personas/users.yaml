@@ -1,0 +1,19 @@
+# user simulator용 가짜 사용자. 이름·사번은 누가 봐도 가짜 (U9xxx).
+# correction_prob: 결과를 고쳐 쓰는 확률 (D03 신호)
+# rerequest_prob: 결과가 기대와 다를 때 다시 요청하는 확률 (D02 신호)
+# repetitive_procedure: SKILL이 없는 다단계 절차를 반복 수행 (D09 신호)
+users:
+  - {id: U9001, name: 가상사용자-01, team: 가상재무1팀, role: AP 담당, style: 짧고 구어체, correction_prob: 0.6, rerequest_prob: 0.7, typical: [open_items, open_items_ambiguous]}
+  - {id: U9002, name: 가상사용자-02, team: 가상재무1팀, role: AP 담당, style: 정확한 수치 요구, correction_prob: 0.8, rerequest_prob: 0.5, typical: [open_items, gl_balance]}
+  - {id: U9003, name: 가상사용자-03, team: 가상재무2팀, role: 결산 담당, style: 기간을 자주 생략, correction_prob: 0.3, rerequest_prob: 0.6, typical: [open_items_no_period, gl_balance], repetitive_procedure: month_end_vendor_recon}
+  - {id: U9004, name: 가상사용자-04, team: 가상재무2팀, role: 결산 담당, style: 연간·누적 조회가 많음, correction_prob: 0.2, rerequest_prob: 0.4, typical: [open_items_annual], repetitive_procedure: month_end_vendor_recon}
+  - {id: U9005, name: 가상사용자-05, team: 가상재무3팀, role: GL 담당, style: 월을 "9월"처럼 말함, correction_prob: 0.4, rerequest_prob: 0.3, typical: [gl_balance]}
+  - {id: U9006, name: 가상사용자-06, team: 가상재무3팀, role: 전표 담당, style: 전기를 서두름, correction_prob: 0.2, rerequest_prob: 0.2, typical: [document_post]}
+  - {id: U9007, name: 가상사용자-07, team: 가상구매팀, role: 구매 담당, style: 거래처 이름을 일부만 말함, correction_prob: 0.3, rerequest_prob: 0.8, typical: [open_items_ambiguous]}
+  - {id: U9008, name: 가상사용자-08, team: 가상구매팀, role: 구매 담당, style: 외화 거래처가 많음, correction_prob: 0.5, rerequest_prob: 0.4, typical: [open_items_multi_currency], repetitive_procedure: month_end_vendor_recon}
+
+procedures:
+  month_end_vendor_recon:
+    description: 매월 말, 담당 거래처 5~8곳의 미결 전표를 하나씩 조회해 통화별 합계를 표로 정리한다
+    steps: [vendor-search, open-items-query, open-items-query, open-items-query, 통화별 집계, 표 정리]
+    covered_by_skill: null          # D09: 덮는 공용 SKILL이 없다

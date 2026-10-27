@@ -44,6 +44,8 @@ SEL은 Agent Runtime VM(Aegra) 안에서 스케줄러 신호로 Creator → Test
 - `docs/01_PRD_SEL_v0.3.md`: SEL PRD. 결정의 이유와 결정 요청은 여기서 확인한다.
 - `docs/02_M0_questions_branches.md`: 미결 질문과 답에 따른 설계 분기.
 - `docs/03_PRD_tracing_v3.1.md`: 트레이싱 PRD. 참고용.
+- `docs/04_SEL_e2e_examples.md`: e2e 개선 예시 14개 (PRD 아님. SEL 애플리케이션 설계 용어).
+- `sel-lab/`: SEL 실험장. 가짜 데이터는 `python3 sel-lab/gen/build.py`로 재생성. `data/ground_truth/`와 `data/defects/catalog.yaml`은 채점용 정답이라 루프 코드에서 읽지 않는다. 키는 `.env`(커밋 금지).
 - `docs/diagrams/`: 다이어그램 원본 spec. 그림을 고칠 때는 png가 아니라 spec을 고쳐 다시 렌더한다.
 
 ## 작업 방식

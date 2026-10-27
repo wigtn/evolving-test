@@ -1,0 +1,31 @@
+[project]
+name = "sel-lab"
+version = "0.1.0"
+description = "SEL self-evolving loop lab on LangGraph + DeepAgents with synthetic data"
+requires-python = ">=3.11"
+dependencies = [
+  "langgraph>=1.2,<2",
+  "langchain>=1.4,<2",
+  "langchain-core>=1.7,<2",
+  "langchain-openai>=1.7,<2",
+  "deepagents>=0.7.32,<0.8",
+  "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+phoenix = [
+  "arize-phoenix",
+  "openinference-instrumentation-langchain",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp-proto-http",
+]
+
+[project.scripts]
+sel = "sel_lab.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sel_lab"]

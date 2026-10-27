@@ -1,0 +1,7 @@
+{"defect": "D01", "base": "skill/fi-open-items@1.4.2", "degraded": "skill/fi-open-items@1.4.3", "file": "data/assets/variants/fi-open-items@1.4.3.md"}
+{"defect": "D02", "base": "skill/fi-open-items@1.4.2", "degraded": "skill/fi-open-items@1.4.4", "file": "data/assets/variants/fi-open-items@1.4.4.md"}
+{"defect": "D03", "base": "prompt/fi-assistant-persona@1.0.0", "degraded": "prompt/fi-assistant-persona@1.0.1", "file": "data/assets/variants/fi-assistant-persona@1.0.1.md"}
+{"defect": "D04", "base": "skill/fi-document-post@1.0.0", "degraded": "skill/fi-document-post@1.0.1", "file": "data/assets/variants/fi-document-post@1.0.1.md"}
+{"defect": "D05", "base": "agent/fi-assistant@1.0.0", "degraded": "agent/fi-assistant@1.0.1", "file": "data/assets/variants/fi-assistant@1.0.1.yaml"}
+{"defect": "D06", "base": "tool/fi-gl-balance-query@1.2.0", "degraded": "tool/fi-gl-balance-query@1.2.1", "file": "data/assets/variants/fi-gl-balance-query@1.2.1.yaml"}
+{"defect": "D10", "base": "skill/fi-open-items@1.4.2", "degraded": "skill/fi-open-items@1.4.5", "file": "data/assets/variants/fi-open-items@1.4.5.md"}
