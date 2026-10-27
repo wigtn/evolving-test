@@ -120,7 +120,7 @@ SEL이 볼 수 있는 범위가 고칠 수 있는 범위와 검증 방식을 정
 
 ![SEL 구조 · 스케줄러가 기동하고, 개선안은 사람 승인을 거쳐 활성](images/sel-architecture.png)
 
-그림은 위에서 아래로 읽는다. 맨 위 스케줄러가 주기 작업을 모두 기동하고, 굵은 선이 개선 한 사이클이다. 원천(ARD 정본, Phoenix 사본, 세션 기록·사용 원장)은 SEL에 밀어 넣지 않는다. 스케줄러가 매시 폴백 분석기를 깨우면 분석기가 지난 구간을 증분 조회(pull)한다. 원천에 데이터가 쌓이는 경로(Collector → ARD·Phoenix)는 트레이싱 팀 영역이다. 개선안이 활성 버전이 되는 길은 Improver → SEL Admin UI(사람 승인) → Database Connector 하나뿐이다.
+그림은 위에서 아래로 읽는다. 맨 위 스케줄러가 주기 작업을 모두 기동하고, 굵은 선이 개선 한 사이클이다. 원천(ARD 정본, Phoenix 사본, 세션 기록·사용 원장)은 SEL에 밀어 넣지 않는다. 스케줄러가 매시 폴백 분석기를 깨우면 분석기가 지난 구간을 증분 조회(pull)한다. 원천에 데이터가 쌓이는 경로는 그림 맨 위 초록 영역이다. Business·Personal 에이전트(존재 여부는 Q7)가 OTLP로 OTel Collector에 보내고, Collector가 정본(원본 전체)은 ARD로, 사본(1·2등급은 구조만)은 Phoenix로 적재한다. 이 영역은 업무 영역과 트레이싱 팀 소관이다. 프론티어 도구(OpenAI Dots)는 OTel을 주지 않으므로, 제공될 경우 세션 기록만 들어온다. 사용 원장은 우리 팀 게이트(공통 진입점, Tools Gateway)가 기록한다. 개선안이 활성 버전이 되는 길은 Improver → SEL Admin UI(사람 승인) → Database Connector 하나뿐이다.
 
 **Agent Runtime VM 안** (프로세스 간 통신)
 

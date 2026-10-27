@@ -1,11 +1,16 @@
 {
   "title": "SEL · Agent Runtime VM 안의 평가·개선 루프",
-  "subtitle": "스케줄러가 깨우면 분석기가 원천을 조회(pull) · 개선안은 반드시 사람 승인(Admin UI)을 거쳐 활성 · 점선 = 미결 경로",
+  "subtitle": "업무 에이전트 실행 → Collector가 정본·사본으로 적재 (트레이싱 팀) · 스케줄러가 깨우면 분석기가 원천을 조회(pull) · 개선안은 반드시 사람 승인 · 점선 = 미결·조건부",
   "direction": "DOWN",
   "groups": [
     {
+      "id": "up",
+      "label": "실행 · 수집 (업무 영역 · 트레이싱 팀)",
+      "tone": "green"
+    },
+    {
       "id": "src",
-      "label": "실행 기록 · 세션 기록"
+      "label": "원천 (SEL이 조회하는 곳)"
     },
     {
       "id": "vm",
@@ -24,6 +29,26 @@
   ],
   "nodes": [
     {
+      "id": "bizagent",
+      "label": "Business · Personal 에이전트",
+      "sub": "Aegra Runtime 실행 · 존재 여부 Q7",
+      "group": "up",
+      "shape": "actor"
+    },
+    {
+      "id": "frontier",
+      "label": "프론티어 도구",
+      "sub": "OpenAI Dots · OTel 미제공",
+      "group": "up",
+      "shape": "external"
+    },
+    {
+      "id": "collector",
+      "label": "OTel Collector",
+      "sub": "정본·사본 두 갈래 · 등급별 내용 제거",
+      "group": "up"
+    },
+    {
       "id": "ard",
       "label": "ARD 실행 기록 정본",
       "sub": "운영 trace 유무 Q7 · Q6",
@@ -41,7 +66,7 @@
     {
       "id": "session",
       "label": "세션 기록 · 사용 원장",
-      "sub": "수정·재요청 · 자산·도구 호출",
+      "sub": "세션 요약 · 게이트 호출 기록 (우리 팀 게이트가 기록)",
       "group": "src",
       "shape": "db",
       "tone": "gray"
@@ -161,6 +186,27 @@
     }
   ],
   "edges": [
+    {
+      "from": "bizagent",
+      "to": "collector",
+      "label": "OTLP"
+    },
+    {
+      "from": "frontier",
+      "to": "session",
+      "label": "세션 기록 (제공 시)",
+      "dashed": true
+    },
+    {
+      "from": "collector",
+      "to": "ard",
+      "label": "정본 (원본 전체)"
+    },
+    {
+      "from": "collector",
+      "to": "phoenix",
+      "label": "사본 (1·2등급 구조만)"
+    },
     {
       "from": "front",
       "to": "ard",
@@ -296,7 +342,7 @@
     },
     {
       "kind": "dashed",
-      "label": "미결 경로 (Q5·Q6)"
+      "label": "미결·조건부 경로 (Q5·Q6·Q7)"
     },
     {
       "kind": "external",
