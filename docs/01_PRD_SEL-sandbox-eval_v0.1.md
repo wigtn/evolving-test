@@ -62,6 +62,8 @@ Phoenix에서는 구조와 분포만 가져오고, 평가는 우리가 만든 �
 
 ![SEL 샌드박스 평가 플랫폼 구조 · A–C 세 영역](images/sel-architecture.png)
 
+그림의 Tester·Evaluator·Creator·Improver는 v3 SEL 명칭이다. Tester(실행기)와 Evaluator(채점·비교)는 이 플랫폼이 만들고, Creator·Improver는 범위 밖이라 연결 지점만 점선으로 표시했다. 각 명칭의 정의는 v3 SEL 문서를 받은 뒤 맞춘다(M0 질문 Q4).
+
 핵심 부품은 강조한 샌드박스 런타임과 **별도 배포한 샌드박스 Gateway**다. 운영과 같은 도구 이름·스키마로 합성 세계에서 응답하므로 에이전트 코드는 바뀌지 않고, SAP 자격증명이 없으므로 운영으로 나갈 수 없다. 채점은 실행기가 직접 모은 응답·호출 로그·최종 DB 상태로 하고, Phoenix는 열람에만 쓴다.
 
 | 경계 | 우리 팀 | 다른 팀 |
