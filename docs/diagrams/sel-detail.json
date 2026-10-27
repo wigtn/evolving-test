@@ -1,0 +1,359 @@
+{
+  "title": "SEL 상세 · 스케줄러부터 검증까지 (PRD v0.4)",
+  "subtitle": "매시 = 운영 기록 집계(관찰) · 매일 = 기준선 갱신과 골든셋 직접 실행(능동 시험) · 굵은 선 = 개선 한 사이클 · 사람 승인 없이는 활성 불가",
+  "direction": "DOWN",
+  "groups": [
+    {
+      "id": "sch",
+      "label": "스케줄러",
+      "tone": "orange"
+    },
+    {
+      "id": "an",
+      "label": "폴백 분석기 (4장)",
+      "tone": "green"
+    },
+    {
+      "id": "svc",
+      "label": "SEL 서비스 (9장)",
+      "tone": "violet"
+    },
+    {
+      "id": "mk",
+      "label": "개선안 작성 (7장)",
+      "tone": "teal"
+    },
+    {
+      "id": "ev",
+      "label": "평가 · 게이트 (5·6장)",
+      "tone": "blue"
+    },
+    {
+      "id": "rl",
+      "label": "승인 · 릴리스 · 검증",
+      "tone": "red"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "jh",
+      "label": "매시 · 폴백 분석",
+      "sub": "지난 1시간 + 재스캔 구간",
+      "group": "sch"
+    },
+    {
+      "id": "jb",
+      "label": "매일 · 기준선 재계산",
+      "sub": "자산 버전별 28일 발생률",
+      "group": "sch"
+    },
+    {
+      "id": "jg",
+      "label": "매일 · 정기 골든셋",
+      "sub": "부하 최저 시간대 · 고정 세트",
+      "group": "sch"
+    },
+    {
+      "id": "jv",
+      "label": "6시간 · Verifier",
+      "sub": "카나리 · 전후 비교",
+      "group": "sch"
+    },
+    {
+      "id": "jd",
+      "label": "10분 · 기한 감시",
+      "sub": "상태별 기한 초과 처리",
+      "group": "sch"
+    },
+    {
+      "id": "a1",
+      "label": "원천 증분 조회",
+      "sub": "정본 · 사본 · 세션 기록 · 사용 원장",
+      "group": "an"
+    },
+    {
+      "id": "a2",
+      "label": "R1–R8 집계",
+      "sub": "자산 버전별 신호 발생률",
+      "group": "an"
+    },
+    {
+      "id": "a3",
+      "label": "임계 · 묶기",
+      "sub": "지지 20 · 주체 3 · 기준선×1.5\n플랫폼 원인 제외 · dedupe_key",
+      "group": "an"
+    },
+    {
+      "id": "s1",
+      "label": "케이스 상태머신",
+      "sub": "자산당 활성 1 · 동시 10\n우선순위 rate×reach×weight",
+      "group": "svc",
+      "emphasis": true
+    },
+    {
+      "id": "s2",
+      "label": "case_event · outbox",
+      "sub": "상태 전이 기록 · 이벤트 발행",
+      "group": "svc"
+    },
+    {
+      "id": "c1",
+      "label": "진단",
+      "sub": "증거: 정본 내용 또는\n샌드박스 재현(실패 서명 일치)",
+      "group": "mk",
+      "emphasis": true
+    },
+    {
+      "id": "c2",
+      "label": "가설 · 평가 세트 고정",
+      "sub": "목표 · 가드 · 고정 (frozen)",
+      "group": "mk",
+      "emphasis": true
+    },
+    {
+      "id": "c3",
+      "label": "개선안 draft",
+      "sub": "변경 유형 제약 · 정적 검사\n누출 검사 · 등급 상속",
+      "group": "mk",
+      "emphasis": true
+    },
+    {
+      "id": "t1",
+      "label": "Tester",
+      "sub": "asset_overrides 주입\n기준 팔 · 후보 팔 × k",
+      "group": "ev",
+      "emphasis": true
+    },
+    {
+      "id": "t2",
+      "label": "평가 샌드박스",
+      "sub": "standard-v1 · 평가 계정\nHITL 대역 · user simulator",
+      "group": "ev",
+      "emphasis": true
+    },
+    {
+      "id": "e1",
+      "label": "Evaluator",
+      "sub": "규칙 검사 → judge 쌍대\n(보정: 자기 일치 0.8 · κ 0.6)",
+      "group": "ev",
+      "emphasis": true
+    },
+    {
+      "id": "g1",
+      "label": "게이트",
+      "sub": "G1 개선 · G2 비열등 · G3 고정\nG4 판정 가능 · 회귀 케이스 0",
+      "group": "ev",
+      "shape": "decision",
+      "emphasis": true
+    },
+    {
+      "id": "i1",
+      "label": "Improver",
+      "sub": "제안 상태 등록 · 상신\nprovenance 기록",
+      "group": "rl",
+      "emphasis": true
+    },
+    {
+      "id": "ad",
+      "label": "SEL Admin UI",
+      "sub": "승인 · 반려 · 수정 요청\n(iteration 다르면 409)",
+      "group": "rl",
+      "shape": "actor",
+      "emphasis": true
+    },
+    {
+      "id": "r1",
+      "label": "릴리스",
+      "sub": "full·relay: 전체\ngateway·action·new_asset: 카나리",
+      "group": "rl",
+      "emphasis": true
+    },
+    {
+      "id": "v1",
+      "label": "Verifier",
+      "sub": "전후 7일 · 같은 요일 비교\n→ VERIFIED / REGRESSED",
+      "group": "rl"
+    },
+    {
+      "id": "ho",
+      "label": "held-out 평가셋",
+      "sub": "사람(SME) 관리 · Creator는 집계만",
+      "shape": "db",
+      "tone": "gray"
+    },
+    {
+      "id": "reg",
+      "label": "자산 저장소",
+      "sub": "draft → 제안 → 활성 → 폐기",
+      "shape": "db",
+      "tone": "gray"
+    },
+    {
+      "id": "pg",
+      "label": "PostgreSQL sel",
+      "sub": "케이스 · 평가 원장 · 리포트",
+      "shape": "db",
+      "tone": "gray"
+    }
+  ],
+  "edges": [
+    {
+      "from": "jh",
+      "to": "a1",
+      "label": "기동"
+    },
+    {
+      "from": "a1",
+      "to": "a2"
+    },
+    {
+      "from": "jb",
+      "to": "a3",
+      "label": "기준선"
+    },
+    {
+      "from": "a2",
+      "to": "a3"
+    },
+    {
+      "from": "a3",
+      "to": "s1",
+      "label": "finding"
+    },
+    {
+      "from": "jd",
+      "to": "s1",
+      "label": "초과 → HELD · REJECTED"
+    },
+    {
+      "from": "s1",
+      "to": "s2"
+    },
+    {
+      "from": "s2",
+      "to": "pg"
+    },
+    {
+      "from": "s1",
+      "to": "c1",
+      "label": "OPEN",
+      "emphasis": true
+    },
+    {
+      "from": "c1",
+      "to": "c2",
+      "emphasis": true
+    },
+    {
+      "from": "ho",
+      "to": "c2",
+      "label": "판정 세트 추출"
+    },
+    {
+      "from": "c2",
+      "to": "c3",
+      "emphasis": true
+    },
+    {
+      "from": "c3",
+      "to": "reg",
+      "label": "draft 등록"
+    },
+    {
+      "from": "c3",
+      "to": "t1",
+      "label": "후보",
+      "emphasis": true
+    },
+    {
+      "from": "jg",
+      "to": "t1",
+      "label": "고정 세트 · 활성 버전 (R6)"
+    },
+    {
+      "from": "t1",
+      "to": "t2",
+      "emphasis": true
+    },
+    {
+      "from": "t2",
+      "to": "e1",
+      "label": "사례별 결과",
+      "emphasis": true
+    },
+    {
+      "from": "e1",
+      "to": "g1",
+      "emphasis": true
+    },
+    {
+      "from": "g1",
+      "to": "c1",
+      "label": "FAIL (반복 ≤ 3)",
+      "back": true
+    },
+    {
+      "from": "g1",
+      "to": "i1",
+      "label": "PASS",
+      "emphasis": true
+    },
+    {
+      "from": "i1",
+      "to": "ad",
+      "label": "승인 요청",
+      "emphasis": true
+    },
+    {
+      "from": "ad",
+      "to": "c1",
+      "label": "수정 요청",
+      "back": true,
+      "dashed": true
+    },
+    {
+      "from": "ad",
+      "to": "r1",
+      "label": "승인",
+      "emphasis": true
+    },
+    {
+      "from": "r1",
+      "to": "reg",
+      "label": "활성 전환",
+      "emphasis": true
+    },
+    {
+      "from": "jv",
+      "to": "v1",
+      "label": "기동"
+    },
+    {
+      "from": "r1",
+      "to": "v1",
+      "label": "관측 시작"
+    },
+    {
+      "from": "v1",
+      "to": "s1",
+      "label": "VERIFIED · REGRESSED",
+      "back": true
+    }
+  ],
+  "legend": [
+    {
+      "kind": "emphasis",
+      "label": "개선 한 사이클"
+    },
+    {
+      "kind": "dashed",
+      "label": "사람이 되돌림 (수정 요청)"
+    },
+    {
+      "kind": "edge",
+      "label": "주기 작업 · 보조 흐름"
+    }
+  ],
+  "style": "clean",
+  "font": "plain"
+}

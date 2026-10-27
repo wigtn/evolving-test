@@ -20,6 +20,12 @@ SEL은 공용 자산(Agent, SKILL, Prompt)을 평가하고 고치는 루프다. 
 
 일반 버전: [docs/images/sel-architecture.png](docs/images/sel-architecture.png) · 원본 spec: [docs/diagrams/](docs/diagrams/)
 
+### SEL 상세 (스케줄러부터 검증까지)
+
+![SEL 상세](docs/images/sel-detail-handdrawn.png)
+
+매시 분석은 이미 쌓인 운영 기록을 세는 **관찰**이고, 매일 정기 골든셋은 활성 버전으로 고정 사례를 직접 돌려보는 **능동 시험**이다. 매일 기준선 재계산은 매시 분석이 "평소보다 나빠졌나"를 판단하는 잣대다. 자세한 표는 PRD 3장.
+
 ## 미결 (M0 게이트)
 
 | # | 질문 |
