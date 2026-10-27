@@ -41,7 +41,7 @@ SEL은 Agent Runtime VM(Aegra) 안에서 스케줄러 신호로 Creator → Test
 
 ## 문서
 
-- `docs/01_PRD_SEL_v0.3.md`: SEL PRD. 결정의 이유와 결정 요청은 여기서 확인한다.
+- `docs/01_PRD_SEL_v0.4.md`: SEL PRD. 결정의 이유와 결정 요청은 여기서 확인한다.
 - `docs/02_M0_questions_branches.md`: 미결 질문과 답에 따른 설계 분기.
 - `docs/03_PRD_tracing_v3.1.md`: 트레이싱 PRD. 참고용.
 - `docs/04_SEL_e2e_examples.md`: e2e 개선 예시 14개 (PRD 아님. SEL 애플리케이션 설계 용어).
