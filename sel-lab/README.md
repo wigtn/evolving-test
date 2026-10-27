@@ -78,6 +78,7 @@ python -m sel_lab.cli approve <case_id>                 # 사람 승인 → 활�
 python -m sel_lab.cli traffic --batch b2 --n 250
 python -m sel_lab.cli verify <case_id> --batch b2       # 반영 후 같은 패턴 발생률 비교
 python -m sel_lab.cli truth                             # 정답지와 대조 (채점용. 루프에는 쓰지 않는다)
+python -m sel_lab.cli aa --trials 59 --k 3               # A/A: 같은 버전끼리 게이트 → 항목별 오판률 (사내 LLM으로 돌려야 의미 있음)
 ```
 
 결과물은 `runs/`에 쌓인다: `traces/runs_prod.jsonl`, `runs_eval.jsonl`, `audit.jsonl`(Gateway 감사 기록), `sessions.jsonl`(세션 기록), `golden.jsonl`, `sel.sqlite`(케이스·이벤트), `registry/`(활성 버전, 후보 자산).
@@ -107,7 +108,7 @@ trace 화면이 필요하면 `pip install -e ".[phoenix]"` 후 `phoenix serve`�
 | `sel_lab/worker.py` | 워커. 자산 묶음으로 에이전트를 조립. 기본은 LangChain `create_agent`, `SEL_WORKER=deepagents`면 DeepAgents. `max_turns`는 ModelCallLimitMiddleware. 잘못된 도구 인자는 ARG_INVALID로 감사 기록에 남긴다 |
 | `sel_lab/scorer.py` | 규칙 채점 |
 | `sel_lab/tester.py` | 쌍대 실행 (기준 팔 · 후보 팔 × k) |
-| `sel_lab/gate.py` | G1–G4 (LCB, MDI, α' = 0.05/3) |
+| `sel_lab/gate.py` | 게이트 (PRD v0.5): G1 LCB>0 & MMI, G2 비열등(δ 0.05), G3a 정책 규칙 위반 0, G3b 사례 수 보정 Fisher 검정(고정 k=10), 회귀 = 완전 붕괴 수 ≤ 허용치(기준 통과율로 계산한 포아송 95% 분위), G4 판정 가능 |
 | `sel_lab/analyzer.py` | 폴백 분석기 R1, R2, R5, R6, R7, R8 |
 | `sel_lab/sel.py` | 케이스 상태머신, Creator, Improver, 정적 검사, 승인·릴리스·검증·롤백 |
 | `sel_lab/cli.py` | 명령 |
@@ -123,6 +124,13 @@ DeepAgents `create_deep_agent`는 파일 도구(ls, read_file, write_file 등)�
 - 운영 실행 기록에는 평가 케이스 ID를 넣지 않는다. 시뮬레이터 대응표는 `runs/traces/sim_index.jsonl`에 따로 두고 루프는 읽지 않는다.
 - 세션 기록에는 채점 항목 이름이 아니라 사용자 발화만 남긴다.
 - Creator 가설의 대상은 항상 현재 활성 버전으로 강제한다. 판정용 holdout 사례 내용은 Creator·Improver에 넘기지 않는다.
+
+## PRD와 다른 점 (lab 단순화)
+
+- 군집 보정, judge 선호 점수, 케이스별 MMI 고정, 게이트 조기 종료 순서, 증거 구획, 유입 검사는 아직 구현하지 않았다. 정적 검사는 front matter 전체(허용 도구 포함) 변경만 막는다.
+- Verifier(`verify`)는 트리거 배치 대비 발생률이 절반 이하인지로 판정한다. PRD v0.5의 "트리거 제외 구간 대비 이중차분 + 급등 전 기준선 비열등"이 아니다. lab은 배치가 기준(b0)·트리거(b1)·반영 후(b2) 셋뿐이라 그렇다.
+- GATE_FAILED 뒤 케이스는 OPEN으로 돌아가 Creator가 가설부터 다시 세운다(앱 설계는 TRIAGED).
+- Tool 메타데이터 변경을 허용한다(D06 시연용). PRD는 Tool 제외이고 D15가 미결이다.
 
 ## 아직 없는 것
 

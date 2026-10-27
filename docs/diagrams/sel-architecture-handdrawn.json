@@ -59,7 +59,7 @@
     {
       "id": "phoenix",
       "label": "Phoenix 사본",
-      "sub": "1·2등급 구조만 · 타 팀",
+      "sub": "1·2등급·미표시는 구조만\n3등급은 마스킹본 · 타 팀",
       "group": "src",
       "shape": "external"
     },
@@ -92,9 +92,17 @@
       "emphasis": true
     },
     {
+      "id": "fence",
+      "label": "증거 구획",
+      "sub": "증거는 데이터로만 · 외부 입력 필드 표시\n지시문·URL 탐지 (인젝션 차단)",
+      "group": "vm",
+      "tone": "red",
+      "emphasis": true
+    },
+    {
       "id": "creator",
       "label": "Creator",
-      "sub": "가설 · 개선안(패치·마이너)",
+      "sub": "가설 · 개선안 · 유입 검사",
       "group": "vm",
       "emphasis": true
     },
@@ -115,7 +123,7 @@
     {
       "id": "evaluator",
       "label": "Evaluator · 게이트",
-      "sub": "규칙 검사 → judge · G1–G4",
+      "sub": "규칙 검사 → judge\nG1–G4 (보정된 검정)",
       "group": "vm",
       "emphasis": true
     },
@@ -137,13 +145,13 @@
     {
       "id": "verifier",
       "label": "Verifier",
-      "sub": "반영 전후 발생률 비교",
+      "sub": "트리거 제외 구간 대비 이중차분\n+ 급등 전 기준선 비열등",
       "group": "vm"
     },
     {
       "id": "entry",
       "label": "공통 진입점",
-      "sub": "권한 판정",
+      "sub": "권한 판정 · 평가 계정 정책\nop 허용목록 · 행 범위 · 등급 상한\nrate limit · 결산기 차단",
       "group": "gate"
     },
     {
@@ -183,6 +191,12 @@
       "label": "합성 세계",
       "sub": "Q5-b일 때만",
       "shape": "external"
+    },
+    {
+      "id": "selfsvc",
+      "label": "셀프서비스 제출",
+      "sub": "비즈니스 영역 · 자기 자산 버전",
+      "shape": "actor"
     }
   ],
   "edges": [
@@ -253,8 +267,13 @@
     },
     {
       "from": "svc",
-      "to": "creator",
+      "to": "fence",
       "label": "OPEN",
+      "emphasis": true
+    },
+    {
+      "from": "fence",
+      "to": "creator",
       "emphasis": true
     },
     {
@@ -333,6 +352,12 @@
     {
       "from": "dbc",
       "to": "pg"
+    },
+    {
+      "from": "selfsvc",
+      "to": "tester",
+      "label": "제출 (제출자 권한 ∩ 평가 계정)",
+      "back": true
     }
   ],
   "legend": [

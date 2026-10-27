@@ -18,7 +18,7 @@
     {
       "id": "m2a",
       "label": "M2a · 워킹 스켈레톤",
-      "sub": "Tester·Evaluator · 조회 업무 1개\n게이트: 변형 검출, A/A, judge 일치율",
+      "sub": "Tester·Evaluator · 조회 업무 1개\n게이트: 변형 검출 · A/A 오판 ≤ 5% (59회)",
       "emphasis": true
     },
     {
@@ -29,7 +29,7 @@
     {
       "id": "m2c",
       "label": "M2c · Creator·Improver v0",
-      "sub": "finding → 개선안 → 승인·활성\n게이트: 채택 조건 (부족하면 dry-run)",
+      "sub": "결함 주입 완주(예외) → A/A 통과 후 실사용\n게이트: 채택 조건 (부족하면 dry-run)",
       "emphasis": true,
       "tone": "teal"
     },

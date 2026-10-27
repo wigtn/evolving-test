@@ -246,6 +246,33 @@ def cmd_smoke(a):
     print("smoke:", "통과" if ok else "실패")
 
 
+def cmd_aa(a):
+    """A/A: 같은 버전끼리 게이트를 돌려 오판률을 잰다 (PRD v0.5 6장, M2c 착수 조건).
+    오프라인 가짜 에이전트는 결정적이라 오판이 0으로 나온다. 의미 있는 값은 사내 LLM으로 잰다."""
+    from . import gate
+    from .sel import build_eval_set
+    if not offline():
+        preflight()
+    registry.init_state(force=False)
+    kinds = sorted({c["kind"] for c in tester.cases().values()})
+    trials = {"G1_pass": 0, "G2_fail": 0, "G3a_fail": 0, "G3b_fail": 0, "regress>allow": 0, "verdict_pass": 0}
+    for i in range(a.trials):
+        h = {"target_kinds": [kinds[i % len(kinds)]], "guard_kinds": [kinds[(i + 1) % len(kinds)]]}
+        es = build_eval_set(h)
+        res = tester.paired_run(es, {}, k=a.k, log=lambda *_: None)   # 후보 = 기준과 같은 버전
+        d = gate.decide(res)
+        trials["G1_pass"] += d["G1"]
+        trials["G2_fail"] += not d["G2"]
+        trials["G3a_fail"] += not d["G3a"]
+        trials["G3b_fail"] += not d["G3b"]
+        trials["regress>allow"] += d["regressed_cases"] > d["regress_allow"]
+        trials["verdict_pass"] += d["verdict"] == "PASS"
+        print(f"  trial {i + 1}: target={h['target_kinds']} verdict={d['verdict']} G1={d['G1']} G2={d['G2']} "
+              f"G3a={d['G3a']} G3b={d['G3b']} regressed={d['regressed_cases']}/{d['regress_allow']} d̄={d['target']['dbar']:.3f}")
+    print("A/A 오판률 (목표: 각각 5% 이하, 판단에는 59회 이상 필요):",
+          {k: f"{v}/{a.trials}" for k, v in trials.items()})
+
+
 def cmd_demo(a):
     """결함 하나를 처음부터 끝까지: 기준 트래픽 → 주입 → 운영 트래픽 → 분석 → 루프 → 승인 → 반영 후 트래픽 → 검증."""
     log = print
@@ -275,8 +302,8 @@ def cmd_demo(a):
         case, _ = sel.show(cid)
         g = case["body"].get("gate")
         if g:
-            print(f"    gate: {g['verdict']} G1={g['G1']} G2={g['G2']} G3={g['G3']} G4={g['G4']} "
-                  f"target d̄={g['target']['dbar']:.3f} lcb={g['target']['lcb']:.3f} mdi={g['target']['mdi']:.3f} n={g['target']['n']}")
+            print(f"    gate: {g['verdict']} G1={g['G1']} G2={g['G2']} G3={g['G3']} G4={g['G4']} regressed={g['regressed_cases']} "
+                  f"target d̄={g['target']['dbar']:.3f} lcb={g['target']['lcb']:.3f} mmi={g['mmi']} n={g['target']['n']}")
         print(f"    state: {st}")
         if st == "AWAITING_APPROVAL" and a.auto_approve:
             print("[6] 승인 (demo: 자동 승인. 실제로는 사람이 Admin UI에서)")
@@ -310,6 +337,8 @@ def main():
     x = sp.add_parser("rollback"); x.add_argument("case"); x.add_argument("--approver", default="me"); x.set_defaults(f=cmd_rollback)
     x = sp.add_parser("truth"); x.set_defaults(f=cmd_truth)
     x = sp.add_parser("smoke"); x.set_defaults(f=cmd_smoke)
+    x = sp.add_parser("aa"); x.add_argument("--trials", type=int, default=59); x.add_argument("--k", type=int, default=3)
+    x.set_defaults(f=cmd_aa)
     x = sp.add_parser("demo"); x.add_argument("defect"); x.add_argument("--n", type=int, default=120)
     x.add_argument("--k", type=int, default=3); x.add_argument("--recon", type=int, default=0)
     x.add_argument("--auto-approve", action="store_true"); x.add_argument("--focus"); x.set_defaults(f=cmd_demo)
