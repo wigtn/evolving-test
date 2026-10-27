@@ -1,0 +1,103 @@
+{
+  "title": "단계와 게이트 · 하네스를 먼저, 개선 루프는 바로 그 위에",
+  "subtitle": "날짜·인력은 M0에서 추정 · 점선 = 조건부 · Personal은 D3 결정 후 M2b 이후",
+  "direction": "RIGHT",
+  "style": "clean",
+  "font": "plain",
+  "nodes": [
+    {
+      "id": "m0",
+      "label": "M0 · 준비",
+      "sub": "런타임·도구 계약·파일럿 팀\n게이트: 런타임 확보, D3·D4·D5"
+    },
+    {
+      "id": "m1",
+      "label": "M1 · 분석",
+      "sub": "수집기·정규화·템플릿\n게이트: run 조립 완전율"
+    },
+    {
+      "id": "m2a",
+      "label": "M2a · 워킹 스켈레톤",
+      "sub": "조회 업무 1개 · 단일 턴 10개\n게이트: 변형 검출, A/A 오판, 노이즈",
+      "emphasis": true
+    },
+    {
+      "id": "m2b",
+      "label": "M2b · 하네스 완성",
+      "sub": "쓰기·commit · user simulator\n게이트: 백테스트 판별"
+    },
+    {
+      "id": "m2c",
+      "label": "M2c · 개선 루프 v0",
+      "sub": "재현·진단·Improver·승인 · suite 확장\n게이트: 채택 조건 통과 (부족하면 dry-run)",
+      "emphasis": true,
+      "tone": "teal"
+    },
+    {
+      "id": "m3",
+      "label": "M3 · 생성 자동화 (조건부)",
+      "sub": "세계·시나리오 생성기\n착수: 수요 > 수작업"
+    },
+    {
+      "id": "m4",
+      "label": "M4 · 셀프서비스 공개",
+      "sub": "제출 API·리포트·쿼터\n게이트: 파일럿 팀 단독 완료"
+    }
+  ],
+  "edges": [
+    {
+      "from": "m0",
+      "to": "m1"
+    },
+    {
+      "from": "m0",
+      "to": "m2a",
+      "emphasis": true,
+      "label": "M1과 병행"
+    },
+    {
+      "from": "m2a",
+      "to": "m2c",
+      "emphasis": true
+    },
+    {
+      "from": "m1",
+      "to": "m2c",
+      "label": "실패 클러스터"
+    },
+    {
+      "from": "m2a",
+      "to": "m2b",
+      "label": "M2c와 병행"
+    },
+    {
+      "from": "m2c",
+      "to": "m3",
+      "dashed": true,
+      "label": "held-out 수요"
+    },
+    {
+      "from": "m2b",
+      "to": "m4"
+    },
+    {
+      "from": "m2c",
+      "to": "m4"
+    },
+    {
+      "from": "m3",
+      "to": "m4",
+      "dashed": true
+    }
+  ],
+  "legend": [
+    {
+      "kind": "emphasis",
+      "label": "주 경로"
+    },
+    {
+      "kind": "dashed",
+      "label": "조건부"
+    }
+  ]
+}

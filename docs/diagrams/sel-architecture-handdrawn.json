@@ -1,230 +1,58 @@
 {
-  "title": "SEL 샌드박스 평가 플랫폼",
-  "subtitle": "trace는 구조만 쓰고, 평가는 합성 세계 위에서 돈다 · 명칭은 v3 SEL 기준 (정의 확인 전)",
+  "title": "SEL 샌드박스 평가·개선 플랫폼",
+  "subtitle": "운영 trace는 구조와 실패 빈도만 · 평가와 진단은 합성 세계 위에서 · 채택은 회귀 0 + 사람 승인",
   "direction": "RIGHT",
   "groups": [
-    {
-      "id": "src",
-      "label": "입력 (타 팀)"
-    },
-    {
-      "id": "a",
-      "label": "A · 수집·분석",
-      "tone": "green"
-    },
-    {
-      "id": "b",
-      "label": "B · 합성 데이터 생성",
-      "tone": "orange"
-    },
-    {
-      "id": "c",
-      "label": "C · 샌드박스 평가 (실데이터 없음)",
-      "tone": "violet"
-    },
-    {
-      "id": "sel",
-      "label": "v3 SEL 루프 (범위 밖)"
-    }
+    { "id": "src", "label": "입력 (타 팀)" },
+    { "id": "a", "label": "A · 수집·분석", "tone": "green" },
+    { "id": "b", "label": "B · 합성 데이터", "tone": "orange" },
+    { "id": "c", "label": "C · 샌드박스 평가", "tone": "violet" },
+    { "id": "l", "label": "L · 개선 루프", "tone": "teal" }
   ],
   "nodes": [
-    {
-      "id": "phoenix",
-      "label": "Phoenix 사본",
-      "sub": "트레이싱 팀 운영",
-      "group": "src",
-      "shape": "external"
-    },
-    {
-      "id": "ledger",
-      "label": "실행 원장",
-      "sub": "validator·HITL·피드백",
-      "group": "src",
-      "shape": "db",
-      "tone": "gray"
-    },
-    {
-      "id": "sched",
-      "label": "트레이싱 스케줄러",
-      "sub": "span 증분 수집",
-      "group": "a"
-    },
-    {
-      "id": "assemble",
-      "label": "run 조립·라벨 join",
-      "sub": "erp.run_id 기준",
-      "group": "a"
-    },
-    {
-      "id": "analysis",
-      "label": "분석·시나리오 템플릿",
-      "sub": "실패 클러스터 · 값 없음",
-      "group": "a"
-    },
-    {
-      "id": "contract",
-      "label": "도구 계약",
-      "sub": "Tool 레지스트리",
-      "group": "b"
-    },
-    {
-      "id": "world",
-      "label": "합성 세계 world@v",
-      "sub": "가짜 SAP·문서·페르소나",
-      "group": "b"
-    },
-    {
-      "id": "suite",
-      "label": "시나리오·정답 suite@v",
-      "sub": "품질 게이트 + 사람 검수",
-      "group": "b"
-    },
-    {
-      "id": "tester",
-      "label": "Tester",
-      "sub": "실행기 · suite × 버전 × k회",
-      "group": "c",
-      "emphasis": true
-    },
-    {
-      "id": "runtime",
-      "label": "Aegra 샌드박스 런타임",
-      "sub": "별도 Gateway · SAP 자격증명 없음",
-      "group": "c",
-      "emphasis": true
-    },
-    {
-      "id": "evaluator",
-      "label": "Evaluator",
-      "sub": "규칙 채점 · 짝 비교 · pass^k",
-      "group": "c",
-      "emphasis": true
-    },
-    {
-      "id": "creator",
-      "label": "Creator",
-      "sub": "개선안 생성",
-      "group": "sel",
-      "shape": "external"
-    },
-    {
-      "id": "improver",
-      "label": "Improver",
-      "sub": "개선안 반영",
-      "group": "sel",
-      "shape": "external"
-    },
-    {
-      "id": "gate",
-      "label": "v3 게이트",
-      "sub": "regressed_cases: 0",
-      "shape": "decision"
-    },
-    {
-      "id": "biz",
-      "label": "비즈니스 영역",
-      "sub": "셀프서비스 제출·리포트",
-      "shape": "actor"
-    }
+    { "id": "phoenix", "label": "Phoenix 사본", "sub": "트레이싱 팀 운영", "group": "src", "shape": "external" },
+    { "id": "ledger", "label": "실행 원장", "sub": "validator·HITL·피드백", "group": "src", "shape": "db", "tone": "gray" },
+    { "id": "sched", "label": "트레이싱 스케줄러", "sub": "span 증분 수집", "group": "a" },
+    { "id": "assemble", "label": "run 조립·라벨 join", "sub": "erp.run_id 기준", "group": "a" },
+    { "id": "analysis", "label": "실패 클러스터·템플릿", "sub": "구조와 빈도만 · 값 없음", "group": "a" },
+    { "id": "contract", "label": "도구 계약", "sub": "Tool 레지스트리", "group": "b" },
+    { "id": "world", "label": "합성 세계 world@v", "sub": "가짜 SAP·문서·페르소나", "group": "b" },
+    { "id": "suite", "label": "시나리오·정답 suite@v", "sub": "dev / held-out 분리", "group": "b" },
+    { "id": "tester", "label": "Tester", "sub": "실행기 · suite × 버전 × k회", "group": "c", "emphasis": true },
+    { "id": "runtime", "label": "Aegra 샌드박스 런타임", "sub": "별도 Gateway · SAP 자격증명 없음", "group": "c", "emphasis": true },
+    { "id": "evaluator", "label": "Evaluator", "sub": "규칙 채점 · 짝 비교 · flip", "group": "c", "emphasis": true },
+    { "id": "diagnose", "label": "재현·진단", "sub": "샌드박스 trace 전체로 원인 위치", "group": "l" },
+    { "id": "improver", "label": "Improver", "sub": "기존 skill·prompt 증분 패치", "group": "l" },
+    { "id": "creator", "label": "Creator", "sub": "새 skill 초안 (보수적)", "group": "l" },
+    { "id": "gate", "label": "채택 판정", "sub": "회귀 0 · 정책 통과 · 사람 승인", "shape": "decision" },
+    { "id": "registry", "label": "자산 레지스트리", "sub": "승인된 새 버전", "shape": "external" },
+    { "id": "biz", "label": "비즈니스 영역", "sub": "셀프서비스 제출·리포트", "shape": "actor" }
   ],
   "edges": [
-    {
-      "from": "phoenix",
-      "to": "sched"
-    },
-    {
-      "from": "sched",
-      "to": "assemble"
-    },
-    {
-      "from": "ledger",
-      "to": "assemble"
-    },
-    {
-      "from": "assemble",
-      "to": "analysis"
-    },
-    {
-      "from": "analysis",
-      "to": "suite",
-      "label": "템플릿"
-    },
-    {
-      "from": "contract",
-      "to": "world"
-    },
-    {
-      "from": "world",
-      "to": "suite"
-    },
-    {
-      "from": "world",
-      "to": "runtime",
-      "label": "스냅샷"
-    },
-    {
-      "from": "suite",
-      "to": "tester",
-      "emphasis": true
-    },
-    {
-      "from": "tester",
-      "to": "runtime",
-      "label": "실행",
-      "emphasis": true
-    },
-    {
-      "from": "runtime",
-      "to": "evaluator",
-      "label": "응답·로그·최종 상태",
-      "emphasis": true
-    },
-    {
-      "from": "evaluator",
-      "to": "gate",
-      "label": "회귀 판정"
-    },
-    {
-      "from": "evaluator",
-      "to": "biz",
-      "label": "리포트"
-    },
-    {
-      "from": "biz",
-      "to": "tester",
-      "label": "제출",
-      "back": true
-    },
-    {
-      "from": "analysis",
-      "to": "creator",
-      "dashed": true,
-      "label": "트리거"
-    },
-    {
-      "from": "creator",
-      "to": "improver",
-      "dashed": true
-    },
-    {
-      "from": "improver",
-      "to": "tester",
-      "dashed": true,
-      "label": "후보 버전"
-    }
+    { "from": "phoenix", "to": "sched" },
+    { "from": "sched", "to": "assemble" },
+    { "from": "ledger", "to": "assemble" },
+    { "from": "assemble", "to": "analysis" },
+    { "from": "analysis", "to": "suite", "label": "템플릿" },
+    { "from": "contract", "to": "world" },
+    { "from": "world", "to": "suite" },
+    { "from": "world", "to": "runtime", "label": "스냅샷" },
+    { "from": "suite", "to": "tester", "emphasis": true },
+    { "from": "tester", "to": "runtime", "label": "실행", "emphasis": true },
+    { "from": "runtime", "to": "evaluator", "label": "응답·로그·최종 상태", "emphasis": true },
+    { "from": "analysis", "to": "diagnose", "label": "실패 클러스터" },
+    { "from": "evaluator", "to": "diagnose", "label": "재현 실패", "back": true },
+    { "from": "diagnose", "to": "improver" },
+    { "from": "diagnose", "to": "creator" },
+    { "from": "improver", "to": "tester", "label": "후보 버전" },
+    { "from": "creator", "to": "tester" },
+    { "from": "evaluator", "to": "gate", "label": "판정" },
+    { "from": "gate", "to": "registry", "label": "승인" },
+    { "from": "evaluator", "to": "biz", "label": "리포트" },
+    { "from": "biz", "to": "tester", "label": "제출", "back": true }
   ],
   "legend": [
-    {
-      "kind": "emphasis",
-      "label": "평가 주 경로"
-    },
-    {
-      "kind": "dashed",
-      "label": "v3 SEL 연결 (범위 밖)"
-    },
-    {
-      "kind": "external",
-      "label": "타 팀·범위 밖"
-    }
+    { "kind": "emphasis", "label": "평가 주 경로" },
+    { "kind": "external", "label": "타 팀 소유" }
   ]
 }
