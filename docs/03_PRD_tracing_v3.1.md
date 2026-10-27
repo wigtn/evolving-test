@@ -8,7 +8,7 @@ v3 Business·Personal Runtime의 실행 기록을 정본(Kafka → ARD)과 사�
 
 **배경**
 
-- 별도 실행 기록 분석 도구가 설계에서 빠졌다. OpenAI Dots는 OTel 트레이스를 주지 않고, 도입도 2027년 하반기다. 당분간 실행 기록의 원천은 Aegra Runtime과 우리 Gateway다. 참고 설계에는 Dots의 행동(action) 로그만 받는 경로가 있다.
+- Deep Tracer가 설계에서 빠졌다. OpenAI Dots는 OTel 트레이스를 주지 않고, 도입도 2027년 하반기다. 당분간 실행 기록의 원천은 Aegra Runtime과 우리 Gateway다. 참고 설계에는 Dots의 행동(action) 로그만 받는 경로가 있다.
 - 사본(Phoenix)에는 보안 2등급 이상 데이터를 적재하지 않는다는 방침이 있다. v3.2는 이를 "span은 남기고 2등급 이상 내용만 제거"로 구현한다.
 - 참고 설계는 두 가지다. ERP AI 플랫폼 아키텍처 · 연동 규약의 장면 4와, 전체 아키텍처 v3.2의 관측·비동기 영역이다. 구조는 다음과 같다. Collector가 필수 속성을 검사하고 기록을 정본과 사본 두 갈래로 나눈다. 기밀 내용은 사본에서만 제거한다. SEL은 정본만 읽는다.
 - v3.2에서 정본 경로는 Kafka(사내 클라우드, topic erp.otel.spans.v1) → ARD 적재기(ARD 팀) → ARD로 그려져 있다. 언제 준비될지는 확정되지 않았다.
