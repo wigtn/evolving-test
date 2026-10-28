@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
-RUNS = ROOT / "runs"
+RUNS = Path(os.environ["SEL_RUNS"]) if os.environ.get("SEL_RUNS") else ROOT / "runs"   # 테스트는 임시 디렉터리를 쓴다
 TODAY = date(2026, 10, 27)          # 가짜 세계의 기준일
 CUR_PERIOD = TODAY.strftime("%Y-%m")
 

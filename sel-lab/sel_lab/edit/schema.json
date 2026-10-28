@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sel-edit-bundle/1",
+  "title": "SEL ② 편집 명령 묶음 (docs/10 W1, docs/09 C3 edits)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["base_ref", "change_kind", "edits"],
+  "properties": {
+    "base_ref": {"type": "string", "pattern": "^asset://\\w+/[\\w-]+/[\\w-]+@[^#:/\\s]+$"},
+    "change_kind": {"enum": ["prompt_instruction", "skill_body", "example", "tool_description", "manifest_param"]},
+    "edits": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["op", "path", "value"],
+           "properties": {"op": {"const": "set"}, "path": {"type": "string", "pattern": "^asset://[^#]+:[\\w.-]+$"},
+                          "value": {"type": ["string", "integer", "number", "boolean"]}}},
+          {"type": "object", "additionalProperties": false, "required": ["op", "path", "text"],
+           "properties": {"op": {"enum": ["replace_section", "append_to_section"]},
+                          "path": {"type": "string", "pattern": "^asset://[^:]+@[^#:/\\s]+#.*$"},
+                          "text": {"type": "string"}}}
+        ]
+      }
+    }
+  }
+}

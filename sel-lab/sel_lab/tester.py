@@ -5,6 +5,7 @@ import json
 import zlib
 
 from . import scorer, worker
+from .analyzer import PLATFORM_ERRORS
 from .config import DATA
 from .simulator import CaseSimulator
 
@@ -24,8 +25,10 @@ def run_case(case: dict, overrides: dict | None, *, arm: str, repeat: int, sourc
                    overrides=overrides, simulator=CaseSimulator(case), case_id=case["eval_case_id"],
                    arm=arm, repeat=repeat, seed=zlib.crc32(f"{case['eval_case_id']}|{arm}|{repeat}".encode()) & 0xFFFF)
     s = scorer.score(case, r)
+    errors = [{"tool": a["tool"], "error": a["error"]} for a in r["audit"]
+              if a.get("status") == "error" and a.get("error") not in PLATFORM_ERRORS]
     return {"run_id": r["run_id"], "case_id": case["eval_case_id"], "arm": arm, "repeat": repeat,
-            "score": s["score"], "passed": s["passed"], "checks": s["checks"], "status": r["status"]}
+            "score": s["score"], "passed": s["passed"], "checks": s["checks"], "status": r["status"], "errors": errors}
 
 
 def paired_run(eval_set: dict, candidate_overrides: dict, k: int = 3, k_fixed: int = 10, log=print) -> list[dict]:

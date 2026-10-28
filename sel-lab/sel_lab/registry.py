@@ -1,7 +1,16 @@
 """로컬 Registry. 자산은 불변 버전 파일이고, 활성 버전은 runs/registry/state.json이 가리킨다.
 
-참조 표기는 종류/이름@버전. 정상 버전은 data/assets/<kind>s/, 결함 버전은 data/assets/variants/,
-SEL 후보는 runs/registry/candidates/에 있다. 상태: draft → candidate → approved → active → retired.
+참조 표기는 기준 문서 형식 `asset://종류/ns/이름@버전` (W0, 2026-10-28). base = 버전을 뺀 `asset://종류/ns/이름`.
+- 정상 버전: data/assets/<종류>s/<ns>/<이름>@<버전>.<확장자>
+- 결함 버전: data/assets/variants/<종류>s/<ns>/...
+- SEL 후보: runs/registry/candidates/<종류>s/<ns>/...
+
+파일 형식
+- tool · agent (YAML): kind · metadata{ref, grade} · spec
+- skill · prompt (Markdown): front matter{kind, metadata{ref, grade}, description, allowed_tools, role} + 본문
+  (skill · prompt 형식은 Protocol P2 Asset에서 확정되면 이 파서만 고친다)
+
+상태: draft → candidate → approved → active → retired.
 """
 from __future__ import annotations
 
@@ -17,68 +26,97 @@ from .config import DATA, RUNS
 FOLDERS = {"skill": "skills", "prompt": "prompts", "tool": "tools", "agent": "agents"}
 STATE = RUNS / "registry" / "state.json"
 CAND_DIR = RUNS / "registry" / "candidates"
-DEFAULT_AGENT = "agent/fi-assistant"
+DEFAULT_AGENT = "asset://agent/fi/assistant"
+REF_RE = re.compile(r"asset://(\w+)/([\w-]+)/([\w-]+)@(.+)")
+BASE_RE = re.compile(r"asset://(\w+)/([\w-]+)/([\w-]+)")
 
 
 @dataclass
 class Asset:
     ref: str
     kind: str
+    ns: str
     name: str
     version: str
-    meta: dict
+    meta: dict      # Markdown이면 front matter, YAML이면 문서 전체
+    spec: dict      # YAML이면 spec, Markdown이면 {}
     body: str
     text: str
     path: Path
 
     @property
     def base(self) -> str:
-        return f"{self.kind}/{self.name}"
+        return f"asset://{self.kind}/{self.ns}/{self.name}"
+
+    @property
+    def grade(self):
+        return (self.meta.get("metadata") or {}).get("grade")
 
 
 def split_ref(ref: str):
-    base, ver = ref.split("@", 1)
-    kind, name = base.split("/", 1)
-    return kind, name, ver
+    """asset://종류/ns/이름@버전 → (종류, ns, 이름, 버전)."""
+    m = REF_RE.fullmatch(ref)
+    if not m:
+        raise ValueError(f"자산 참조 형식 아님: {ref}")
+    return m.groups()
+
+
+def kind_of(ref_or_base: str) -> str | None:
+    m = BASE_RE.match(ref_or_base or "")
+    return m.group(1) if m else None
+
+
+def base_of(ref: str) -> str:
+    return ref.split("@", 1)[0]
 
 
 def parse(text: str, path: Path) -> Asset:
     if path.suffix == ".md":
         m = re.match(r"^---\n(.*?)\n---\n(.*)$", text, re.S)
-        meta, body = yaml.safe_load(m.group(1)), m.group(2)
+        meta, body, spec = yaml.safe_load(m.group(1)), m.group(2), {}
     else:
         meta, body = yaml.safe_load(text), ""
-    kind, name, ver = split_ref(meta["asset_ref"])
-    return Asset(meta["asset_ref"], kind, name, ver, meta, body, text, path)
+        spec = meta.get("spec") or {}
+    ref = meta["metadata"]["ref"]
+    kind, ns, name, ver = split_ref(ref)
+    return Asset(ref, kind, ns, name, ver, meta, spec, body, text, path)
 
 
-def _candidates_for(kind: str, name: str):
-    dirs = [DATA / "assets" / FOLDERS[kind], DATA / "assets" / "variants", CAND_DIR]
-    for d in dirs:
+def _dirs(kind: str, ns: str):
+    return [DATA / "assets" / FOLDERS[kind] / ns, DATA / "assets" / "variants" / FOLDERS[kind] / ns,
+            CAND_DIR / FOLDERS[kind] / ns]
+
+
+def _candidates_for(kind: str, ns: str, name: str):
+    for d in _dirs(kind, ns):
         if d.exists():
-            for p in d.glob(f"{name}@*"):
-                yield p
+            yield from d.glob(f"{name}@*")
 
 
 def load(ref: str) -> Asset:
-    kind, name, ver = split_ref(ref)
-    for p in _candidates_for(kind, name):
+    kind, ns, name, ver = split_ref(ref)
+    for p in _candidates_for(kind, ns, name):
         if p.stem == f"{name}@{ver}":
             return parse(p.read_text(encoding="utf-8"), p)
     raise FileNotFoundError(ref)
 
 
+def healthy_path(kind: str, ns: str, name: str) -> Path:
+    """정상 버전 파일 (ORACLE 대역이 씀)."""
+    return next((DATA / "assets" / FOLDERS[kind] / ns).glob(f"{name}@*"))
+
+
 def versions(base: str) -> list[str]:
-    kind, name = base.split("/", 1)
-    return sorted({p.stem.split("@", 1)[1] for p in _candidates_for(kind, name)})
+    kind, ns, name = BASE_RE.fullmatch(base).groups()
+    return sorted({p.stem.split("@", 1)[1] for p in _candidates_for(kind, ns, name)})
 
 
 # ---------- 활성 상태 ----------
 
 def _healthy_refs():
     out = {}
-    for kind, folder in FOLDERS.items():
-        for p in (DATA / "assets" / folder).glob("*@*"):
+    for folder in FOLDERS.values():
+        for p in (DATA / "assets" / folder).glob("*/*@*"):
             a = parse(p.read_text(encoding="utf-8"), p)
             out[a.base] = a.version
     return out
@@ -111,8 +149,8 @@ def active_ref(base: str, overrides: dict | None = None) -> str:
 
 def set_active(ref: str, reason: str, actor: str) -> str | None:
     st = read_state()
-    kind, name, ver = split_ref(ref)
-    base = f"{kind}/{name}"
+    base = base_of(ref)
+    ver = ref.split("@", 1)[1]
     prev = st["active"].get(base)
     st["active"][base] = ver
     st["history"].append({"base": base, "from": prev, "to": ver, "reason": reason, "actor": actor})
@@ -132,30 +170,27 @@ def set_lifecycle(ref: str, status: str) -> None:
 # ---------- 에이전트 조립 ----------
 
 def resolve_agent(agent_base: str = DEFAULT_AGENT, overrides: dict | None = None):
-    """에이전트 매니페스트의 참조를 활성 버전(또는 eval.asset_overrides)으로 풀어 자산 묶음을 돌려준다."""
+    """매니페스트(spec.prompt · skills · tools)의 참조를 활성 버전(또는 eval.asset_overrides)으로 풀어 자산 묶음을 돌려준다."""
     agent = load(active_ref(agent_base, overrides))
-    prompts = [load(active_ref(r.split("@")[0], overrides)) for r in agent.meta.get("prompts", [])]
-    skills = [load(active_ref(r.split("@")[0], overrides)) for r in agent.meta.get("skills", [])]
-    tool_bases = []
-    for s in skills:
-        for t in s.meta.get("allowed_tools", []):
-            b = t.split("@")[0]
-            if b not in tool_bases:
-                tool_bases.append(b)
-    tools = [load(active_ref(b, overrides)) for b in tool_bases]
+    spec = agent.spec
+    prompt_refs = [spec["prompt"]] if spec.get("prompt") else []
+    prompts = [load(active_ref(base_of(r), overrides)) for r in prompt_refs]
+    skills = [load(active_ref(base_of(r), overrides)) for r in spec.get("skills", [])]
+    tools = [load(active_ref(base_of(r), overrides)) for r in spec.get("tools", [])]
     refs = [agent.ref] + [a.ref for a in prompts + skills + tools]
     return {"agent": agent, "prompts": prompts, "skills": skills, "tools": tools, "refs": refs}
 
 
 def write_candidate(base_ref: str, new_version: str, text: str) -> Asset:
-    kind, name, _ = split_ref(base_ref)
+    kind, ns, name, _ = split_ref(base_ref)
     src = load(base_ref)
-    new_ref = f"{kind}/{name}@{new_version}"
+    new_ref = f"asset://{kind}/{ns}/{name}@{new_version}"
     text = text.replace(base_ref, new_ref)
     if new_ref not in text:
-        text = re.sub(r"asset_ref:\s*\S+", f"asset_ref: {new_ref}", text, count=1)
-    CAND_DIR.mkdir(parents=True, exist_ok=True)
-    p = CAND_DIR / f"{name}@{new_version}{src.path.suffix}"
+        text = re.sub(r"(\bref:\s*)\S+", lambda m: m.group(1) + new_ref, text, count=1)
+    d = CAND_DIR / FOLDERS[kind] / ns
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"{name}@{new_version}{src.path.suffix}"
     p.write_text(text, encoding="utf-8")
     set_lifecycle(new_ref, "candidate")
     return parse(text, p)

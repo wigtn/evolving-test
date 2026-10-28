@@ -1,4 +1,4 @@
-"""게이트 통계 (PRD v0.7 6장).
+"""게이트 통계.
 
 - G1 개선: 목표 세트 짝 차이 d_i의 단측 신뢰 하한 > 0, 그리고 d̄ ≥ MMI(사전 고정 최소 의미 개선).
   MDI는 표본 설계용이며 판정에 쓰지 않는다.
@@ -19,7 +19,7 @@ import math
 from statistics import NormalDist, mean, pstdev
 
 Z = NormalDist().inv_cdf
-ALPHA, POWER, MAX_ITER, DELTA, MMI = 0.05, 0.8, 3, 0.05, 0.05   # δ 0.05: 가드 221건과 맞춘 값 (PRD v0.5 6장)
+ALPHA, POWER, MAX_ITER, DELTA, MMI = 0.05, 0.8, 3, 0.05, 0.05   # δ 0.05: 가드 221건과 맞춘 값
 POLICY_CHECKS = {"policy"}          # 도구 호출 기록으로 결정적으로 판정되는 정책 규칙
 
 
@@ -55,7 +55,7 @@ def poisson_ppf(q: float, lam: float) -> int:
 
 
 def collapse_allowance(by, q: float = 0.95) -> int:
-    """완전 붕괴 회귀 허용치: 기대 붕괴 수 λ = Σ p_i^k (1 − p_i)^k 의 포아송 q 분위 (PRD v0.5 6장)."""
+    """완전 붕괴 회귀 허용치: 기대 붕괴 수 λ = Σ p_i^k (1 − p_i)^k 의 포아송 q 분위."""
     lam = 0.0
     for v in by.values():
         b = [r["passed"] for r in v["base"] if r["passed"] is not None]

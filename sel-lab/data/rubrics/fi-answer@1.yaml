@@ -1,6 +1,6 @@
 rubric_id: fi-answer
 version: 1
-judge_prompt: prompt/fi-judge@1.0.0
+judge_prompt: asset://prompt/fi/judge@1.0.0
 weight_rule: 0.5
 weight_judge: 0.5
 criteria:

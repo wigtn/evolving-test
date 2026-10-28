@@ -1,0 +1,31 @@
+kind: tool
+metadata:
+  ref: asset://tool/fi/vendor-search@1.0.0
+  grade: 3
+spec:
+  name: fi_vendor_search
+  description: 거래처 이름 일부로 거래처를 찾는다. 결과가 여러 건일 수 있다.
+  input_schema:
+    type: object
+    required:
+    - name_query
+    properties:
+      name_query:
+        type: string
+        description: 거래처 이름의 일부
+      bukrs:
+        type: string
+        description: 회사코드. 없으면 전체
+  side_effect: read
+  required_capability: fi.read
+  dry_run: unsupported
+  idempotency: none
+  timeout_s: 20
+  binding:
+    sap_api: SIM_FI_VENDOR_SEARCH
+  output:
+    columns:
+    - LIFNR
+    - NAME1
+    - ORT01
+    - BUKRS

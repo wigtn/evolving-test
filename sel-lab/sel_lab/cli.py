@@ -247,7 +247,7 @@ def cmd_smoke(a):
 
 
 def cmd_aa(a):
-    """A/A: 같은 버전끼리 게이트를 돌려 오판률을 잰다 (PRD v0.7 6장, M2c 착수 조건).
+    """A/A: 같은 버전끼리 게이트를 돌려 오판률을 잰다.
     오프라인 가짜 에이전트는 결정적이라 오판이 0으로 나온다. 의미 있는 값은 사내 LLM으로 잰다."""
     from . import gate
     from .sel import build_eval_set

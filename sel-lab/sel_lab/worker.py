@@ -42,7 +42,7 @@ def build_tools(bundle, gw: Gateway):
         fname, method = TOOL_FUNCS[t.base]
         fn = getattr(gw, method)
 
-        schema = t.meta.get("input_schema", {"type": "object"})
+        schema = t.spec.get("input_schema", {"type": "object"})
 
         def call(_fn=fn, _schema=schema, _tool=t.base, **kw):
             # 모델이 필수 인자를 빠뜨리거나 정의에 없는 인자를 넣어도 실행 전체를 죽이지 않는다.
@@ -58,8 +58,8 @@ def build_tools(bundle, gw: Gateway):
                 gw._log(_tool, kw, "error", "ARG_INVALID", detail=str(e)[:200])
                 return json.dumps({"error": "ARG_INVALID", "message": str(e)[:200]}, ensure_ascii=False)
 
-        tools.append(StructuredTool.from_function(func=call, name=fname, description=t.meta.get("description", ""),
-                                                  args_schema=t.meta.get("input_schema", {"type": "object"})))
+        tools.append(StructuredTool.from_function(func=call, name=fname, description=t.spec.get("description", ""),
+                                                  args_schema=t.spec.get("input_schema", {"type": "object"})))
     tools.append(StructuredTool.from_function(
         func=lambda summary: json.dumps(gw.request_approval(summary), ensure_ascii=False),
         name="request_approval", description="쓰기 작업 전 HITL 승인을 요청한다. 승인되면 approval_token을 돌려준다.",
@@ -85,7 +85,7 @@ def run(user_message: str, *, user_id: str, source: str, overrides: dict | None 
     gw = Gateway(world(), run_id, account="eval" if source == "eval" else "prod",
                  faults=faults if faults is not None else registry.read_state().get("faults", {}),
                  rng=random.Random(seed))
-    max_turns = int(bundle["agent"].meta.get("max_turns", 12))
+    max_turns = int((bundle["agent"].spec.get("params") or {}).get("max_turns", 12))
     from langchain.agents.middleware import ModelCallLimitMiddleware
     # max_turns = 사용자 턴 하나에서 허용하는 모델 호출 수. 넘으면 그때까지의 기록을 남기고 끝낸다 (R8 budget_exceeded)
     mw = [ModelCallLimitMiddleware(run_limit=max_turns, exit_behavior="end")]

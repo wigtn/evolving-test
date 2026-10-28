@@ -1,0 +1,23 @@
+kind: agent
+metadata:
+  ref: asset://agent/fi/assistant@1.0.1
+  grade: 2
+spec:
+  preset: transaction@1
+  prompt: asset://prompt/fi/assistant-persona@1.0.0
+  skills:
+  - asset://skill/fi/open-items@1.4.2
+  - asset://skill/fi/gl-balance@1.1.0
+  - asset://skill/fi/document-post@1.0.0
+  tools:
+  - asset://tool/fi/vendor-search@1.0.0
+  - asset://tool/fi/open-items-query@1.0.0
+  - asset://tool/fi/gl-balance-query@1.2.0
+  - asset://tool/fi/document-post@1.0.0
+  extensions: []
+  params:
+    max_turns: 4
+  runtime: deepagents
+  model:
+    id: internal-llm-fixed
+    temperature: 0

@@ -57,7 +57,7 @@ class Gateway:
     world: World
     run_id: str
     account: str = "eval"                      # eval | prod
-    faults: dict = field(default_factory=dict)  # {"tool/fi-open-items-query": {"timeout": 0.15}}
+    faults: dict = field(default_factory=dict)  # {"asset://tool/fi/open-items-query": {"timeout": 0.15}}
     rng: random.Random = field(default_factory=lambda: random.Random(0))
     audit: list = field(default_factory=list)
     hitl_policy: str = "approve"
@@ -77,14 +77,14 @@ class Gateway:
 
     # ---- 도구 ----
     def vendor_search(self, name_query: str, bukrs: str | None = None):
-        tool = "tool/fi-vendor-search"
+        tool = "asset://tool/fi/vendor-search"
         rows = [{"LIFNR": v["lifnr"], "NAME1": v["name1"], "ORT01": v["ort01"], "BUKRS": v["bukrs"]}
                 for v in self.world.vendors if name_query and name_query in v["name1"] and (not bukrs or v["bukrs"] == bukrs)]
         self._log(tool, {"name_query": name_query, "bukrs": bukrs}, "ok", rows=len(rows))
         return {"rows": rows}
 
     def open_items_query(self, lifnr: str, bukrs: str, period_from: str | None = None, period_to: str | None = None):
-        tool = "tool/fi-open-items-query"
+        tool = "asset://tool/fi/open-items-query"
         if (f := self._fault(tool)):
             return f
         args = {"lifnr": lifnr, "bukrs": bukrs, "period_from": period_from, "period_to": period_to}
@@ -103,7 +103,7 @@ class Gateway:
                           "WAERS": d["waers"]} for d in rows]}
 
     def gl_balance_query(self, saknr: str, bukrs: str, period: str):
-        tool = "tool/fi-gl-balance-query"
+        tool = "asset://tool/fi/gl-balance-query"
         args = {"saknr": saknr, "bukrs": bukrs, "period": period}
         if not PERIOD_RE.fullmatch(str(period)):
             self._log(tool, args, "error", "ARG_INVALID")
@@ -116,7 +116,7 @@ class Gateway:
         return {"rows": [{"SAKNR": saknr, "PERIOD": period, "BALANCE": bal, "WAERS": "KRW"}]}
 
     def document_post(self, bukrs: str, budat: str, lines: list, dry_run: bool = True, approval_token: str | None = None):
-        tool = "tool/fi-document-post"
+        tool = "asset://tool/fi/document-post"
         args = {"bukrs": bukrs, "budat": budat, "lines": lines, "dry_run": dry_run, "approval_token": approval_token}
         dr = sum(float(l.get("amount", 0)) for l in lines if l.get("side") == "D")
         cr = sum(float(l.get("amount", 0)) for l in lines if l.get("side") == "C")
@@ -142,9 +142,9 @@ class Gateway:
 
 
 TOOL_FUNCS = {
-    "tool/fi-vendor-search": ("fi_vendor_search", "vendor_search"),
-    "tool/fi-open-items-query": ("fi_open_items_query", "open_items_query"),
-    "tool/fi-gl-balance-query": ("fi_gl_balance_query", "gl_balance_query"),
-    "tool/fi-document-post": ("fi_document_post", "document_post"),
+    "asset://tool/fi/vendor-search": ("fi_vendor_search", "vendor_search"),
+    "asset://tool/fi/open-items-query": ("fi_open_items_query", "open_items_query"),
+    "asset://tool/fi/gl-balance-query": ("fi_gl_balance_query", "gl_balance_query"),
+    "asset://tool/fi/document-post": ("fi_document_post", "document_post"),
 }
 CURRENT_PERIOD = CUR_PERIOD

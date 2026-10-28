@@ -1,4 +1,4 @@
-"""폴백 분석기 (앱 설계 5.3). 운영 실행 기록·Gateway 감사 기록·세션 기록을 집계해 finding을 낸다.
+"""폴백 분석기. 운영 실행 기록·Gateway 감사 기록·세션 기록을 집계해 finding을 낸다.
 
 규칙: R1 tool_error, R2 arg_invalid, R5 negative_feedback, R6 eval_fail, R7 no_asset_match, R8 budget_exceeded.
 (R3 retry_loop, R4 hitl_rejected는 v0에서 생략)
@@ -10,9 +10,9 @@ import hashlib
 import uuid
 from collections import defaultdict
 
-from . import tracing
+from . import registry, tracing
 
-# 개설 임계 (앱 설계 5.2 기본값)
+# 개설 임계
 MIN_SUPPORT, MIN_PRINCIPALS, RATE_MULT, RATE_ABS, RATE_ABS_NEW = 20, 3, 1.5, 0.02, 0.05
 PLATFORM_ERRORS = {"TIMEOUT"}
 
@@ -33,7 +33,7 @@ def _rates(batch):
 
     for r in runs:
         for a in r["audit"]:
-            if not a["tool"].startswith("tool/"):
+            if not a["tool"].startswith("asset://tool/"):
                 continue
             tref = _ver(r["asset_refs"], a["tool"])
             for sig in ("tool_error", "arg_invalid"):
@@ -50,7 +50,7 @@ def _rates(batch):
                     k["evidence"].append({"run_id": r["run_id"], "error": a["error"], "grade": 0})
         if platform_hit(r):
             continue
-        aref = _ver(r["asset_refs"], "agent/fi-assistant")
+        aref = _ver(r["asset_refs"], registry.DEFAULT_AGENT)
         k = m[("budget_exceeded", aref)]
         k["n"] += 1
         if r["status"] == "budget_exceeded":
@@ -62,7 +62,7 @@ def _rates(batch):
         r = by_run.get(s["run_id"])
         if not r or platform_hit(r):
             continue
-        aref = _ver(r["asset_refs"], "agent/fi-assistant")
+        aref = _ver(r["asset_refs"], registry.DEFAULT_AGENT)
         k = m[("negative_feedback", aref)]
         k["n"] += 1
         if s["events"]:
@@ -140,4 +140,11 @@ def _finding(sig, target, k, rate, brate, batch, baseline_batch, support):
                         "baseline_rate": round(brate, 4) if brate is not None else None, "n": k["n"]},
             "evidence": k["evidence"][:50], "max_grade": 0,
             "dedupe_key": hashlib.sha1(f"{target.split('@')[0]}|{sig}|{HYPO[sig]}".encode()).hexdigest()[:16],
+            "dedupe_key_version": 1,
+            "signature": None if is_new else _signature(sig, target, k["evidence"]),
         }
+
+
+def _signature(sig, target, evidence):
+    from .testset import finding_signature
+    return finding_signature(sig, target, evidence)

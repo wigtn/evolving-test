@@ -13,6 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = ["pytest"]
 phoenix = [
   "arize-phoenix",
   "openinference-instrumentation-langchain",
@@ -29,3 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["sel_lab"]
+
+[tool.pytest.ini_options]
+markers = ["slow: 오프라인 demo 전체를 돌리는 느린 테스트 (pytest -m slow)"]
+addopts = "-m 'not slow'"

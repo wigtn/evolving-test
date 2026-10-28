@@ -1,4 +1,4 @@
-"""SEL 서비스 (PRD v0.7): 개선 케이스 상태머신과 Creator·Improver·Tester·Evaluator·Gate·Promoter·Verifier (앱 설계 3·4·6장).
+"""SEL 서비스: 개선 케이스 상태머신과 Creator·Improver·Tester·Evaluator·Gate·Promoter·Verifier.
 
 케이스 = 자산 하나 · 패턴 하나 · 가설 하나. 자산당 활성 케이스는 하나. 상태 전이는 case_event에 추가 기록한다.
 저장소는 로컬 SQLite (운영에서는 PostgreSQL sel 스키마, Database Connector 경유).
@@ -19,9 +19,10 @@ from .config import DATA, RUNS, chat_model, offline
 
 DB = RUNS / "sel.sqlite"
 TERMINAL = {"VERIFIED", "REJECTED", "DISMISSED", "ROLLED_BACK", "ROLLBACK_SKIPPED"}
-JUDGE_BUDGET = 3          # finding(dedupe_key)당 게이트 판정 총 횟수 (PRD v0.7 6장)
+JUDGE_BUDGET = 3          # finding(dedupe_key)당 게이트 판정 총 횟수
 HELD_RETRIES = 2          # 일시적 HELD 재시도 상한
 CHANGE_LIMITS = {"instruction": 30}
+GOVERNANCE_WRITES = 3     # 거버넌스 검사 실패 시 Improver 작성 최대 횟수 (docs/07 E)
 
 
 # ---------- 저장소 ----------
@@ -38,6 +39,8 @@ def db():
     create table if not exists exposure(agent text, content_hash text, source text, at text, primary key(agent, content_hash));
     create table if not exists budget(dedupe_key text primary key, used int);
     create table if not exists suppressed(dedupe_key text primary key, reason text, at text);
+    create table if not exists testset(id text primary key, sel_case_id text, iteration int, frozen_at text, status text, items text);
+    create table if not exists case_usage(eval_case_id text primary key, uses int);
     """)
     return c
 
@@ -72,9 +75,13 @@ def _hash(text: str) -> str:
 def expose(agent: str, texts, source: str) -> None:
     """노출 원장: Creator 컨텍스트에 들어간 입력을 기록한다. 같은 입력의 골든셋 사례는 held-out이 될 수 없다."""
     c = db()
+    hashes = set()
     for x in texts:
         c.execute("insert or ignore into exposure values(?,?,?,?)", (agent, _hash(x), source, _now()))
+        hashes.add(_hash(x))
     c.commit()
+    from .testset import invalidate_exposed
+    invalidate_exposed(c, hashes)          # 고정 뒤 노출: 판정 전 세트는 무효 → 판정 직전에 다시 고정
 
 
 def exposed(agent: str) -> set[str]:
@@ -93,7 +100,7 @@ def budget_used(c, dedupe_key: str) -> int:
 
 def ingest(findings: list[dict]) -> list[str]:
     """중복 키로 묶고, 활성 케이스가 있으면 증거로 붙이고, 없으면 케이스를 연다.
-    suppressed finding(판정 예산 소진, REJECTED, 롤백)은 다시 열지 않는다 (PRD v0.7)."""
+    suppressed finding(판정 예산 소진, REJECTED, 롤백)은 다시 열지 않는다."""
     c = db()
     opened = []
     sup = {r[0] for r in c.execute("select dedupe_key from suppressed")}
@@ -107,7 +114,10 @@ def ingest(findings: list[dict]) -> list[str]:
         if live:
             c.execute("insert or ignore into finding values(?,?,?,?,?)", (f["finding_id"], f["dedupe_key"], live[0], json.dumps(f, ensure_ascii=False), _now()))
             continue
-        cid = f"case_{uuid.uuid4().hex[:8]}"
+        # 결정적 케이스 ID: 같은 finding 키의 몇 번째 케이스인지로 정한다 (시험 문제 분할 시드 · 후보 버전이 이 ID에서 나오므로)
+        import hashlib
+        nth = c.execute("select count(*) from improvement_case where dedupe_key=?", (f["dedupe_key"],)).fetchone()[0]
+        cid = "case_" + hashlib.sha1(f"{f['dedupe_key']}|{nth}".encode()).hexdigest()[:8]
         body = {"finding": f, "history": []}
         c.execute("insert into improvement_case values(?,?,?,?,?,?,?,?,?,?)",
                   (cid, base, target.split("@")[1] if "@" in target else None, f["dedupe_key"], "OPEN", 0,
@@ -159,7 +169,7 @@ def _ask(role: str, system: str, user: str, retries: int = 1) -> dict:
 def _evidence(finding, limit=5):
     from . import tracing
     ids = {e["run_id"] for e in finding.get("evidence", [])}
-    if finding["signal"] == "eval_fail":                   # R6: 고정 사례 원문은 Creator에 넘기지 않는다 (PRD v0.7 5장)
+    if finding["signal"] == "eval_fail":                   # R6: 고정 사례 원문은 Creator에 넘기지 않는다
         return [{"case_id": e["case_id"], "case_kind": e["case_id"].split("/")[0],
                  "failed_checks": e.get("failed_checks", [])} for e in finding.get("evidence", [])[:limit]]
     runs = [r for r in tracing.read("runs_prod") + tracing.read("runs_eval") if r["run_id"] in ids][:limit]
@@ -181,25 +191,25 @@ def _assets_view():
 
 
 KINDS = {
-    "open_items": ("skill/fi-open-items", "기간을 지정한 미결 조회"),
-    "open_items_no_period": ("skill/fi-open-items", "기간 없이 미결 조회 (당월 기본값)"),
-    "open_items_annual": ("skill/fi-open-items", "연간·누적·전체 기간 미결 조회"),
-    "open_items_ambiguous": ("skill/fi-open-items", "이름이 겹치는 거래처 (되묻기)"),
-    "open_items_multi_currency": ("skill/fi-open-items", "통화가 섞인 거래처"),
-    "gl_balance": ("skill/fi-gl-balance", "계정 잔액 (월 표현 변환)"),
-    "document_post": ("skill/fi-document-post", "전표 전기 (dry_run·승인)"),
-    "multi_vendor": ("agent/fi-assistant", "여러 거래처 한 번에 (다단계)"),
+    "open_items": ("asset://skill/fi/open-items", "기간을 지정한 미결 조회"),
+    "open_items_no_period": ("asset://skill/fi/open-items", "기간 없이 미결 조회 (당월 기본값)"),
+    "open_items_annual": ("asset://skill/fi/open-items", "연간·누적·전체 기간 미결 조회"),
+    "open_items_ambiguous": ("asset://skill/fi/open-items", "이름이 겹치는 거래처 (되묻기)"),
+    "open_items_multi_currency": ("asset://skill/fi/open-items", "통화가 섞인 거래처"),
+    "gl_balance": ("asset://skill/fi/gl-balance", "계정 잔액 (월 표현 변환)"),
+    "document_post": ("asset://skill/fi/document-post", "전표 전기 (dry_run·승인)"),
+    "multi_vendor": ("asset://agent/fi/assistant", "여러 거래처 한 번에 (다단계)"),
 }
 
 
 # ---------- Creator ----------
 
 CREATOR_SYS = """너는 SEL Creator다. 실패 패턴(finding)과 증거 실행 기록, 현행 자산을 보고 가설을 세운다.
-고칠 수 있는 범위: Agent는 sel_editable_fields만(composition), SKILL 본문(instruction, example), Prompt는 persona만(instruction),
+고칠 수 있는 범위: Agent는 spec.params의 허용 필드만(composition), SKILL 본문(instruction, example), Prompt는 persona만(instruction),
 Tool은 description·인자 설명·pattern(metadata). judge 프롬프트와 평가 케이스는 고칠 수 없다.
 원인이 도구 구현·플랫폼 장애·데이터·권한이면 dismiss한다. 증거가 부족해도 dismiss한다.
 JSON 하나로만 답한다:
-{"decision":"proceed|dismiss","reason":"...","target_asset_ref":"종류/이름@버전","change_type":"instruction|metadata|composition|example|new_asset",
+{"decision":"proceed|dismiss","reason":"...","target_asset_ref":"asset://종류/ns/이름@버전","change_type":"instruction|metadata|composition|example|new_asset",
  "field_path":"...","hypothesis":"한 문장","confidence":0.0~1.0,"target_kinds":["..."],"guard_kinds":["..."]}"""
 
 
@@ -238,7 +248,7 @@ def _creator_offline(f, ev, prev):
     if sig == "no_asset_match":
         return {"decision": "dismiss", "reason": "offline 모드는 new_asset을 만들지 않는다"}
     if sig == "arg_invalid":
-        return {"decision": "proceed", "target_asset_ref": tgt, "change_type": "metadata", "field_path": "description",
+        return {"decision": "proceed", "target_asset_ref": tgt, "change_type": "metadata", "field_path": "spec.description",
                 "hypothesis": "도구 설명에 인자 형식이 없어 잘못된 형식으로 호출한다", "confidence": 0.6,
                 "target_kinds": kinds or ["gl_balance"], "guard_kinds": []}
     if sig == "tool_error":
@@ -257,7 +267,7 @@ def _creator_offline(f, ev, prev):
                 "hypothesis": "고정 세트 실패 유형의 SKILL 절차에 필수 단계가 빠졌다", "confidence": 0.5,
                 "target_kinds": kinds, "guard_kinds": []}
     if sig == "budget_exceeded":
-        return {"decision": "proceed", "target_asset_ref": tgt, "change_type": "composition", "field_path": "max_turns",
+        return {"decision": "proceed", "target_asset_ref": tgt, "change_type": "composition", "field_path": "spec.params.max_turns",
                 "hypothesis": "턴 상한이 다단계 업무에 부족하다", "confidence": 0.6, "target_kinds": kinds or ["multi_vendor"], "guard_kinds": []}
     # negative_feedback: 세션 이벤트로 대상 결정
     evs = [x for e in f.get("evidence", []) for x in e.get("events", [])]
@@ -294,7 +304,7 @@ def _validate_hypothesis(h: dict) -> dict:
     if base not in registry.read_state()["active"]:
         return {"decision": "dismiss", "reason": f"알 수 없는 대상 자산: {ref}"}
     h["target_asset_ref"] = registry.active_ref(base)
-    kind = base.split("/")[0]
+    kind = registry.kind_of(base)
     if h.get("change_type") not in ALLOWED_CHANGE.get(kind, set()):
         return {"decision": "dismiss", "reason": f"{kind}에 허용되지 않는 변경 유형: {h.get('change_type')}"}
     h["target_kinds"] = [k for k in h.get("target_kinds") or [] if k in KINDS]
@@ -308,7 +318,7 @@ DEV_PER_KIND = 2   # dev 쪽 비대칭 분할: 업무 유형당 소량만 (PRD: 
 
 
 def split_golden(seed: str, agent: str = registry.DEFAULT_AGENT) -> set[str]:
-    """held-out = 노출 원장 밖의 골든셋 사례 중 dev 소량을 뺀 나머지 (PRD v0.7 5장).
+    """held-out = 노출 원장 밖의 골든셋 사례 중 dev 소량을 뺀 나머지.
     Creator 컨텍스트에 한 번이라도 들어간 입력의 사례는 시드와 무관하게 held-out에 들어오지 않는다.
     lab 데이터에는 template_id가 없어 사례 하나를 템플릿 하나로 본다."""
     import zlib
@@ -320,43 +330,35 @@ def split_golden(seed: str, agent: str = registry.DEFAULT_AGENT) -> set[str]:
     return {cid for ids in by_kind.values() for cid in ids[DEV_PER_KIND:]}
 
 
-def build_eval_set(finding: dict | None, n_target=12, n_guard=8, k_probe=2, n_probe=200,
-                   seed: str = "default", log=print) -> dict:
-    """판정 세트를 코드가 뽑는다. Creator의 가설은 세트를 고르지 않는다 (PRD v0.7 5장).
+def build_eval_set(finding: dict | None, target_ref: str | None = None, n_target=12, n_guard=8, n_probe=200,
+                   seed: str = "default", log=print, runner=None) -> dict:
+    """시험 문제 선정 (W9, sel_lab/testset.py). 코드가 고른다. Creator의 가설은 대상 자산(범위)만 정하고 문제를 고르지 않는다."""
+    from . import testset
+    es = testset.select(split_golden(seed), target_ref=target_ref, finding=finding, kinds_map=KINDS,
+                        usage=testset.usage_map(db()), seed=seed, n_target=n_target, n_guard=n_guard,
+                        n_probe=n_probe, runner=runner, log=log)
+    build_eval_set.last_stats = es.pop("_stats", None)
+    return es
 
-    요청 문장으로 업무 유형을 분류해 목표를 고르면, 결함이 문장에 드러나지 않는 경우(예: 이름이 겹치는 거래처)
-    기준 버전이 이미 통과하는 사례만 뽑혀 개선을 잴 수 없다. 그래서 기준 실패 탐침으로 고른다.
-    - 탐침: held-out 후보(시드 표본 n_probe건)를 현행 활성 버전으로 k_probe회 실행한다. 결과는 선정에만 쓰고 판정에는 다시 실행한다
-      (선정과 판정이 독립이라 평균 회귀가 기준·후보 양쪽에 같게 걸린다).
-    - 목표 = 탐침에서 한 번이라도 실패한 사례. R6(eval_fail)이면 실패한 고정 사례도 목표에 넣는다(내용은 Creator에 안 갔다).
-    - 가드 = 탐침에서 전부 통과한 사례 중 시드 무작위. 고정 = 전부."""
-    import zlib
-    cs = tester.cases()
-    held = sorted(split_golden(seed), key=lambda x: zlib.crc32(f"probe|{seed}|{x}".encode()))[:n_probe]
-    fail, ok = [], []
-    for cid in held:
-        runs = [tester.run_case(cs[cid], None, arm="probe", repeat=r) for r in range(k_probe)]
-        valid = [r["passed"] for r in runs if r["passed"] is not None]
-        if valid:
-            (ok if all(valid) else fail).append(cid)
-    target = fail[:n_target]
-    if finding and finding["signal"] == "eval_fail":
-        target = sorted({e["case_id"] for e in finding.get("evidence", []) if e.get("case_id")}) + target
-    guard = sorted(ok, key=lambda x: zlib.crc32(f"guard|{seed}|{x}".encode()))[:n_guard]
-    fixed = [c["eval_case_id"] for c in cs.values() if c["fixed"]][:4]
-    fixed = [x for x in fixed if x not in target]
-    log(f"  probe: held-out {len(held)}건 × {k_probe}회, 기준 실패 {len(fail)}건 → 목표 {len(target)}, 가드 {len(guard)}")
-    return {"target": target, "guard": guard, "fixed": fixed}
+
+def _freeze_set(c, case, h, log, refreeze: bool = False) -> None:
+    from . import testset
+    seed = f"{case['case_id']}|{case['iteration']}" + ("|refreeze" if refreeze else "")
+    h["eval_set"] = build_eval_set(case["body"]["finding"], target_ref=h.get("target_asset_ref"), seed=seed, log=log)
+    h["test_set"] = testset.freeze(c, case["case_id"], case["iteration"], h["eval_set"])
+    h["test_set"]["stats"] = getattr(build_eval_set, "last_stats", None)
+    if refreeze:
+        h["test_set"]["refrozen"] = True
 
 
 # ---------- Improver ----------
 
 IMPROVER_SYS = """너는 SEL Improver다. 가설과 현행 자산 원문을 받아, 변경 유형 제약 안에서 고친 자산 원문 전체를 돌려준다.
 - instruction: 본문만, 변경 30줄 이내, 섹션 단위. front matter의 allowed_tools는 바꾸지 않는다
-- metadata: tool의 description, 인자 description, pattern만
-- composition: agent의 sel_editable_fields만
+- metadata: tool의 spec.description, 인자 description, pattern만
+- composition: agent의 spec.params 허용 필드만
 - example: 예시 블록만. 예시 값은 '가상' 합성 값만
-asset_ref 줄과 front matter 구조는 그대로 둔다 (버전은 시스템이 붙인다).
+metadata.ref 줄과 front matter 구조는 그대로 둔다 (버전은 시스템이 붙인다).
 답 형식: 먼저 한 줄로 변경 요지를 쓰고, 고친 원문 전체를 아래 구분자 사이에 그대로 넣는다. 코드 펜스를 쓰지 않는다.
 <<<ASSET
 (고친 자산 원문 전체)
@@ -367,10 +369,11 @@ def improver(case, h) -> dict:
     base_ref = h["target_asset_ref"]
     src = registry.load(base_ref)
     if offline():
-        return _improver_oracle(src)
+        return _improver_oracle(src, h.get("change_type", "instruction"))
     from langchain_core.messages import HumanMessage, SystemMessage
     hyp = {k: h.get(k) for k in ("target_asset_ref", "change_type", "field_path", "hypothesis")}   # 판정 세트는 넘기지 않는다
-    msg = json.dumps({"hypothesis": hyp, "asset_text": src.text}, ensure_ascii=False)
+    fb = case["body"].get("governance_feedback")       # 직전 거버넌스 실패 범주만 (W2-11)
+    msg = json.dumps({"hypothesis": hyp, "asset_text": src.text} | ({"governance_failed": fb} if fb else {}), ensure_ascii=False)
     for _ in range(2):
         txt = _text(chat_model("improver").invoke([SystemMessage(IMPROVER_SYS), HumanMessage(msg)]))
         m = re.search(r"<<<ASSET\n(.*?)\nASSET>>>", txt, re.S)
@@ -381,10 +384,52 @@ def improver(case, h) -> dict:
     raise ValueError("Improver 출력에 자산 블록이 없음")
 
 
-def _improver_oracle(src) -> dict:
-    """ORACLE: 같은 자산의 정상 버전 원문으로 되돌린다. 배관 검증 전용이며 개선 능력을 재지 않는다."""
-    p = next((DATA / "assets" / registry.FOLDERS[src.kind]).glob(f"{src.name}@*"))
-    return {"text": p.read_text(encoding="utf-8"), "note": "ORACLE(offline): 정상 버전 원문 복원"}
+CHANGE_KIND = {"tool": "tool_description", "agent": "manifest_param", "prompt": "prompt_instruction"}
+
+
+def _change_kind(src, change_type: str) -> str:
+    if src.kind == "skill":
+        return "example" if change_type == "example" else "skill_body"
+    return CHANGE_KIND[src.kind]
+
+
+def _leaves(d, prefix=()):
+    if isinstance(d, dict):
+        for k, v in d.items():
+            yield from _leaves(v, prefix + (k,))
+    else:
+        yield prefix, d
+
+
+def _improver_oracle(src, change_type: str = "instruction") -> dict:
+    """ORACLE: 정상 버전과 다른 곳을 편집 명령으로 되돌린다 (W1). 허용 여부는 거르지 않는다(거버넌스 검사기 W2가 판정).
+    배관 검증 전용이며 개선 능력을 재지 않는다(원인 적중률이 구조상 100%)."""
+    from .edit.address import Address
+    from .edit.sections import all_paths, block
+    healthy = registry.parse(registry.healthy_path(src.kind, src.ns, src.name).read_text(encoding="utf-8"),
+                             registry.healthy_path(src.kind, src.ns, src.name))
+    edits = []
+    if src.path.suffix == ".md":
+        a_lines, b_lines = src.body.split("\n"), healthy.body.split("\n")
+        for path in all_paths(a_lines):
+            if path not in all_paths(b_lines):
+                continue
+            s1, e1 = block(a_lines, path)
+            s2, e2 = block(b_lines, path)
+            if "\n".join(a_lines[s1:e1]).strip() != "\n".join(b_lines[s2:e2]).strip():
+                addr = Address(src.ref, "section", section=path)
+                edits.append({"op": "replace_section", "path": str(addr),
+                              "text": "\n".join(b_lines[s2:e2]).strip("\n")})
+    else:
+        old = dict(_leaves(src.meta))
+        for path, val in _leaves(healthy.meta):
+            if path in old and old[path] != val and type(old[path]) is type(val) and path != ("metadata", "ref"):
+                addr = Address(src.ref, "field", field=path)
+                edits.append({"op": "set", "path": str(addr), "value": val})
+    if not edits:
+        raise ValueError("ORACLE: 되돌릴 차이가 없다")
+    bundle = {"base_ref": src.ref, "change_kind": _change_kind(src, change_type), "edits": edits}
+    return {"edits": bundle, "note": "ORACLE(offline): 정상 버전과 다른 곳을 편집 명령으로 복원"}
 
 
 ALLOWED_CHANGE = {"skill": {"instruction", "example"}, "prompt": {"instruction", "example"},
@@ -405,36 +450,40 @@ def _tool_meta_paths(d, prefix=""):
 def static_check(src, new_text: str, change_type: str) -> list[str]:
     errs = []
     try:
-        registry.parse(new_text if "asset_ref" in new_text else "", src.path)
+        registry.parse(new_text, src.path)
     except Exception as e:
         return [f"자산 파싱 실패: {repr(e)[:120]}"]
     if change_type not in ALLOWED_CHANGE.get(src.kind, set()):
         errs.append(f"{src.kind}에 허용되지 않는 변경 유형: {change_type}")
     if src.kind == "tool":
         old, new = _tool_meta_paths(yaml.safe_load(src.text)), _tool_meta_paths(yaml.safe_load(new_text))
-        bad = [p for p in set(old) | set(new) if old.get(p) != new.get(p) and p != "asset_ref"
-               and not (p == "description" or p.endswith(".description") or p.endswith(".pattern"))]
+        bad = [p for p in set(old) | set(new) if old.get(p) != new.get(p) and p != "metadata.ref"
+               and not (p == "spec.description" or (p.startswith("spec.input_schema.") and p.endswith((".description", ".pattern"))))]
         if bad:
             errs.append(f"tool metadata 밖 변경: {sorted(bad)[:5]}")
     if src.kind == "prompt" and src.meta.get("role") == "judge":
         errs.append("judge 프롬프트는 수정 불가")
     if src.kind == "tool" and change_type != "metadata":
         errs.append("tool은 metadata 변경만 허용")
-    a = re.sub(r"asset_ref:\s*\S+", "", src.text).splitlines()
-    b = re.sub(r"asset_ref:\s*\S+", "", new_text).splitlines()
+    a = re.sub(r"\bref:\s*\S+", "", src.text).splitlines()
+    b = re.sub(r"\bref:\s*\S+", "", new_text).splitlines()
     changed = [l for l in difflib.unified_diff(a, b, lineterm="", n=0) if l[:1] in "+-" and not l.startswith(("+++", "---"))]
     if not changed:
         errs.append("변경 없음")
     if change_type == "instruction" and len(changed) > CHANGE_LIMITS["instruction"] * 2:
         errs.append(f"instruction 변경 한도 초과 ({len(changed)}줄)")
     if src.kind == "agent":
-        old, new = yaml.safe_load(src.text), yaml.safe_load(new_text)
-        allowed = set(old.get("sel_editable_fields", []))
-        bad = [k for k in set(old) | set(new) if k not in allowed | {"asset_ref"} and old.get(k) != new.get(k)]
+        old, new = _tool_meta_paths(yaml.safe_load(src.text)), _tool_meta_paths(yaml.safe_load(new_text))
+        from .governance import default as _policy
+        editable = {f"spec.params.{x}" for x in _policy()["allow"]["agent"]["params"]}   # W2 정책 파일 (기본 빈 목록)
+        bad = [p for p in set(old) | set(new) if old.get(p) != new.get(p) and p != "metadata.ref" and p not in editable]
         if bad:
-            errs.append(f"agent 허용 필드 밖 변경: {bad}")
+            errs.append(f"agent 허용 필드 밖 변경: {sorted(bad)[:5]}")
     if src.path.suffix == ".md":
-        fm = lambda t: {k: v for k, v in yaml.safe_load(re.match(r"^---\n(.*?)\n---", t, re.S).group(1)).items() if k != "asset_ref"}
+        def fm(t):
+            d = yaml.safe_load(re.match(r"^---\n(.*?)\n---", t, re.S).group(1))
+            d.get("metadata", {}).pop("ref", None)
+            return d
         if fm(src.text) != fm(new_text):
             errs.append("front matter 변경 불가 (allowed_tools, kind, role 등)")
     if src.kind == "prompt" and src.meta.get("role") != "persona":
@@ -458,9 +507,9 @@ def _stale_evidence(finding) -> list[str]:
         return []
     watch = {tgt}
     b = registry.resolve_agent()
-    if tgt.startswith("tool/"):                    # 도구 신호의 원인은 SKILL·persona에 있을 수 있다
+    if registry.kind_of(tgt) == "tool":                    # 도구 신호의 원인은 SKILL·persona에 있을 수 있다
         watch |= {a.base for a in b["skills"] + b["prompts"]}
-    elif tgt.startswith("agent/"):                 # 에이전트 단위 신호(재요청·예산)는 묶음의 어느 자산에서든 올 수 있다
+    elif registry.kind_of(tgt) == "agent":                 # 에이전트 단위 신호(재요청·예산)는 묶음의 어느 자산에서든 올 수 있다
         watch |= {a.base for a in b["skills"] + b["prompts"] + b["tools"]}
     refs = {r for x in tracing.read("runs_prod") + tracing.read("runs_eval") if x["run_id"] in ids for r in x["asset_refs"]}
     active = registry.read_state()["active"]
@@ -475,7 +524,7 @@ def step(cid: str, k: int = 3, log=print) -> str:
     st = case["state"]
     if st == "OPEN":
         stale = _stale_evidence(case["body"]["finding"])
-        if stale:   # 증거가 이미 교체된 버전에서 나왔다 → 다음 분석에서 새 버전으로 재확인 (앱 설계 STALE)
+        if stale:   # 증거가 이미 교체된 버전에서 나왔다 → 다음 분석에서 새 버전으로 재확인
             transition(c, case, "DISMISSED", "sel_service", {"reason": "증거 버전이 더 이상 활성 아님", "stale": stale})
             return "DISMISSED"
         try:
@@ -488,17 +537,59 @@ def step(cid: str, k: int = 3, log=print) -> str:
             transition(c, case, "DISMISSED", "sel_creator", {"reason": h.get("reason")})
         else:
             case["iteration"] += 1
-            h["eval_set"] = build_eval_set(case["body"]["finding"], seed=f"{cid}|{case['iteration']}", log=log)
+            case["body"].pop("governance_rejections", None)    # 거버넌스 재작성 횟수 · 범주는 가설마다 새로
+            case["body"].pop("governance_feedback", None)
+            _freeze_set(c, case, h, log)
             case["body"]["hypothesis"] = h
             transition(c, case, "TRIAGED", "sel_creator", {"hypothesis": h["hypothesis"], "target": h["target_asset_ref"]})
     elif st == "TRIAGED":
         h = case["body"]["hypothesis"]
         src = registry.load(h["target_asset_ref"])
+        from . import governance
+        fp = h.get("field_path")
+        if src.path.suffix != ".md" and fp and not governance.target_allowed(src, f"{src.ref}:{fp}"):
+            # 가설의 대상 주소부터 정책 밖: 생성하지 않고 끝낸다(다시 만들어도 바뀌지 않는다)
+            pre = governance.reject_before_generation(src, f"{src.ref}:{fp}")
+            governance.log_decision(pre, f"{cid}/{case['iteration']}")
+            case["body"]["governance"] = {"policy_ref": pre.policy_ref, "policy_hash": pre.policy_hash, "ok": False,
+                                          "checks": pre.checks, "rules": sorted(pre.rules), "stage": "before_generation"}
+            transition(c, case, "REJECTED", "sel_improver", {"reason": "대상 주소가 거버넌스 정책 밖", "c6": "governance_rejected",
+                                                             "address": f"{src.ref}:{fp}"})
+            return "REJECTED"
+        gov = None
         try:
             out = improver(case, h)
-            errs = static_check(src, out["text"], h["change_type"])
+            if "edits" in out:                             # W1 편집 명령 → W2 검사기(정책 파일로 적용 · 내용 검사)
+                from .edit import EditError
+                try:
+                    gov = governance.check(src, out["edits"], change_kind=_change_kind(src, h["change_type"]))
+                except EditError as x:
+                    raise ValueError(f"{x.code}: {x.detail}")
+                governance.log_decision(gov, f"{cid}/{case['iteration']}")
+                case["body"]["governance"] = {"policy_ref": gov.policy_ref, "policy_hash": gov.policy_hash, "ok": gov.ok,
+                                              "checks": gov.checks, "rules": sorted(gov.rules)}
+                if gov.ok:
+                    case["body"].pop("governance_feedback", None)
+                    out["text"] = gov.text
+                    case["body"]["edits"] = {"bundle": out["edits"], "addresses": gov.edit.addresses,
+                                             "changed_lines": gov.edit.changed_lines}
+                    errs = []
+                else:
+                    errs = [f"governance:{x}" for x in governance.feedback(gov)]   # Improver에는 범주만
+            else:
+                errs = static_check(src, out["text"], h["change_type"])
         except Exception as e:
             out, errs = None, [f"Improver 실패: {repr(e)[:200]}"]
+        if gov is not None and not gov.ok:                 # docs/07 E: 범주만 돌려받아 다시 쓴다. 작성 3번까지
+            n = case["body"].get("governance_rejections", 0) + 1
+            case["body"]["governance_rejections"] = n
+            case["body"]["governance_feedback"] = governance.feedback(gov)
+            if n >= GOVERNANCE_WRITES:
+                transition(c, case, "REJECTED", "sel_improver", {"reason": "거버넌스 검사 반복 실패", "c6": "governance_rejected",
+                                                                 "static_check": errs})
+                return "REJECTED"
+            transition(c, case, "TRIAGED", "sel_improver", {"governance_retry": n, "static_check": errs})
+            return "TRIAGED"
         if errs:
             case["body"]["last_failure"] = {"iteration": case["iteration"], "static_check": errs}
             transition(c, case, "GATE_FAILED", "sel_improver", {"static_check": errs})
@@ -513,11 +604,16 @@ def step(cid: str, k: int = 3, log=print) -> str:
             suppress(c, dk, "판정 예산 소진")
             transition(c, case, "REJECTED", "sel_service", {"reason": "판정 예산 소진"})
             return "REJECTED"
+        h = case["body"]["hypothesis"]
+        from . import testset
+        if testset.status(c, h["test_set"]["id"]) != "frozen":     # 고정 뒤 노출로 무효 → 다시 고정
+            _freeze_set(c, case, h, log, refreeze=True)
         transition(c, case, "EVALUATING", "tester")
-        h, cand = case["body"]["hypothesis"], case["body"]["candidate"]["ref"]
+        cand = case["body"]["candidate"]["ref"]
         base, ver = cand.split("@")
         results = tester.paired_run(h["eval_set"], {base: ver}, k=k, log=log)
         dec = gate.decide(results, case["fidelity"])
+        testset.mark_judged(c, h["test_set"]["id"], h["eval_set"])
         case["body"]["gate"] = dec
         case["body"]["results"] = results
         if dec["verdict"] != "HELD":                       # HELD는 판정이 아니므로 예산을 쓰지 않는다
@@ -607,7 +703,7 @@ def verify(cid: str, after: dict) -> str:
 
 
 def auto_rollback(c, case) -> None:
-    """직전 승인 버전으로 자동 롤백 (PRD v0.7 7장). CAS: 현재 활성 == 이 케이스가 릴리스한 버전일 때만."""
+    """직전 승인 버전으로 자동 롤백. CAS: 현재 활성 == 이 케이스가 릴리스한 버전일 때만."""
     rel = case["body"]["release"]
     base = rel["version"].split("@")[0]
     now = registry.active_ref(base)

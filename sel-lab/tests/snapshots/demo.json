@@ -1,0 +1,247 @@
+{
+ "D01": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.4-c25991",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [
+   {
+    "change": null,
+    "gate": null,
+    "signal": "negative_feedback",
+    "state": "DISMISSED",
+    "target": null,
+    "verification": null
+   },
+   {
+    "change": "instruction",
+    "gate": "PASS",
+    "signal": "tool_error",
+    "state": "VERIFIED",
+    "target": "asset://skill/fi/open-items@1.4.3",
+    "verification": {
+     "rate_after": 0.0185,
+     "rate_before": 0.1142
+    }
+   }
+  ],
+  "error": null
+ },
+ "D02": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.5-c677f2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [
+   {
+    "change": "instruction",
+    "gate": "PASS",
+    "signal": "negative_feedback",
+    "state": "VERIFIED",
+    "target": "asset://skill/fi/open-items@1.4.4",
+    "verification": {
+     "rate_after": 0.012,
+     "rate_before": 0.316
+    }
+   }
+  ],
+  "error": null
+ },
+ "D03": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.2-c677f1",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [
+   {
+    "change": "instruction",
+    "gate": "PASS",
+    "signal": "negative_feedback",
+    "state": "VERIFIED",
+    "target": "asset://prompt/fi/assistant-persona@1.0.1",
+    "verification": {
+     "rate_after": 0.008,
+     "rate_before": 0.248
+    }
+   }
+  ],
+  "error": null
+ },
+ "D04": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.2-c4ec81",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [
+   {
+    "change": "instruction",
+    "gate": "PASS",
+    "signal": "eval_fail",
+    "state": "VERIFIED",
+    "target": "asset://skill/fi/document-post@1.0.1",
+    "verification": {
+     "rate_after": 0.0,
+     "rate_before": 1.0
+    }
+   }
+  ],
+  "error": null
+ },
+ "D05": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.1",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [
+   {
+    "change": "composition",
+    "gate": null,
+    "signal": "budget_exceeded",
+    "state": "REJECTED",
+    "target": "asset://agent/fi/assistant@1.0.1",
+    "verification": null
+   }
+  ],
+  "error": null
+ },
+ "D06": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.2-cf4621",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [
+   {
+    "change": "metadata",
+    "gate": "PASS",
+    "signal": "arg_invalid",
+    "state": "VERIFIED",
+    "target": "asset://tool/fi/gl-balance-query@1.2.1",
+    "verification": {
+     "rate_after": 0.0,
+     "rate_before": 1.0
+    }
+   },
+   {
+    "change": null,
+    "gate": null,
+    "signal": "negative_feedback",
+    "state": "DISMISSED",
+    "target": null,
+    "verification": null
+   }
+  ],
+  "error": null
+ },
+ "D07": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [],
+  "error": null
+ },
+ "D08": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [],
+  "error": null
+ },
+ "D09": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.2",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [],
+  "error": null
+ },
+ "D10": {
+  "active": {
+   "asset://agent/fi/assistant": "1.0.0",
+   "asset://prompt/fi/assistant-persona": "1.0.0",
+   "asset://prompt/fi/judge": "1.0.0",
+   "asset://skill/fi/document-post": "1.0.0",
+   "asset://skill/fi/gl-balance": "1.1.0",
+   "asset://skill/fi/open-items": "1.4.5",
+   "asset://tool/fi/document-post": "1.0.0",
+   "asset://tool/fi/gl-balance-query": "1.2.0",
+   "asset://tool/fi/open-items-query": "1.0.0",
+   "asset://tool/fi/vendor-search": "1.0.0"
+  },
+  "cases": [],
+  "error": null
+ }
+}

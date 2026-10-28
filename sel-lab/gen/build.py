@@ -212,7 +212,7 @@ def build_cases(world: World, rng: random.Random):
     def add(kind, n_idx, msg, expected, checks, covers, fixed=False, user=None):
         cid = f"{kind}/{n_idx:04d}"
         cases.append({
-            "eval_case_id": cid, "agent_asset_id": "agent/fi-assistant", "source": "sme",
+            "eval_case_id": cid, "agent_asset_id": "asset://agent/fi/assistant", "source": "sme",
             "kind": kind, "world": WORLD_ID,
             "input": {"user_message": msg, "user_id": user or rng.choice(users), "today": TODAY.isoformat()},
             "expected": expected, "checks": checks, "rubric_id": "fi-answer@1",
@@ -226,7 +226,7 @@ def build_cases(world: World, rng: random.Random):
         rows = world.open_items(v["lifnr"], p, p)
         add("open_items", i, f"{v['name1']} {int(p[5:])}월 미결 전표 합계 알려줘",
             {"vendor": v["lifnr"], "period": [p, p], "answer": world.totals(rows),
-             "tool_calls_must_include": ["tool/fi-open-items-query"]},
+             "tool_calls_must_include": ["asset://tool/fi/open-items-query"]},
             ["grounded", "format", "currency_separated"], ["D03", "D10"])
 
     # 2) 기간 생략 → 당월 기본값 (D01 목표)
@@ -310,7 +310,7 @@ def build_cases(world: World, rng: random.Random):
             {"period": [p, p], "answer_by_vendor": per, "min_tool_calls": 10},
             ["grounded", "format"], ["D05"])
 
-    # pool: 가짜 운영 트래픽이 요청을 뽑는 풀(dev)과 아닌 풀. 판정 분할(held-out)은 sel.split_golden이 노출 원장으로 따로 한다 (PRD v0.7 5장)
+    # pool: 가짜 운영 트래픽이 요청을 뽑는 풀(dev)과 아닌 풀. 판정 분할(held-out)은 sel.split_golden이 노출 원장으로 따로 한다
     for c in cases:
         c["pool"] = "holdout" if int(stable_id(c["eval_case_id"]), 16) % 2 else "dev"
     return cases
@@ -338,15 +338,30 @@ FOLDERS = {"skill": "skills", "prompt": "prompts", "tool": "tools", "agent": "ag
 MARKER = re.compile(r"^<!-- rule:[\w_]+ -->\n", re.M)
 
 
+def split_ref(ref: str):
+    """asset://종류/ns/이름@버전 → (종류, ns, 이름, 버전). 기준 문서 형식 (W0)."""
+    m = re.fullmatch(r"asset://(\w+)/([\w-]+)/([\w-]+)@(.+)", ref)
+    if not m:
+        raise ValueError(f"자산 참조 형식 아님: {ref}")
+    return m.groups()
+
+
 def asset_path(ref: str) -> Path:
-    """원본(규칙 마커 포함)은 data/assets_src/. 루프가 보는 자산은 마커를 지운 data/assets/."""
-    kind, rest = ref.split("/", 1)
-    folder = FOLDERS[kind]
+    """원본(규칙 마커 포함)은 data/assets_src/<종류>s/<ns>/. 루프가 보는 자산은 마커를 지운 data/assets/."""
+    kind, ns, name, ver = split_ref(ref)
     for ext in (".md", ".yaml"):
-        p = DATA / "assets_src" / folder / f"{rest}{ext}"
+        p = DATA / "assets_src" / FOLDERS[kind] / ns / f"{name}@{ver}{ext}"
         if p.exists():
             return p
     raise FileNotFoundError(ref)
+
+
+def set_path(d: dict, dotted: str, value):
+    """YAML 자산에서 점 경로(spec.params.max_turns)의 값을 바꾼다."""
+    keys = dotted.split(".")
+    for k in keys[:-1]:
+        d = d[k]
+    d[keys[-1]] = value
 
 
 def remove_rule(text: str, rule: str) -> str:
@@ -371,8 +386,10 @@ def build_healthy():
         if dst.exists():
             shutil.rmtree(dst)
         dst.mkdir(parents=True)
-        for p in (DATA / "assets_src" / folder).glob("*@*"):
-            (dst / p.name).write_text(clean(p.read_text(encoding="utf-8"), p.suffix), encoding="utf-8")
+        for p in (DATA / "assets_src" / folder).glob("*/*@*"):
+            out = dst / p.parent.name / p.name
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(clean(p.read_text(encoding="utf-8"), p.suffix), encoding="utf-8")
             n += 1
     return n
 
@@ -387,7 +404,7 @@ def build_variants(catalog):
         if not d.get("degraded_version"):
             continue
         src = asset_path(d["target"])
-        name = d["target"].split("/", 1)[1].split("@")[0]
+        kind, ns, name, _ = split_ref(d["target"])
         new_ref = f"{d['target'].split('@')[0]}@{d['degraded_version']}"
         text = src.read_text(encoding="utf-8")
         op = d["patch"]["op"]
@@ -398,20 +415,17 @@ def build_variants(catalog):
             text, n = pat.subn(lambda m: m.group(1) + d["patch"]["value"] + "\n", text)
             if n != 1:
                 raise ValueError(d["id"])
-        elif op == "set_field":
+        elif op in ("set_field", "replace"):
             y = yaml.safe_load(text)
-            y[d["patch"]["field"]] = d["patch"]["value"]
-            text = yaml.safe_dump(y, allow_unicode=True, sort_keys=False)
-        elif op == "replace":
-            y = yaml.safe_load(text)
-            y[d["patch"]["field"]] = d["patch"]["value"]
-            if d["patch"].get("also_remove_pattern") == "properties.period":
-                y["input_schema"]["properties"]["period"] = {"type": "string"}
+            set_path(y, d["patch"]["field"], d["patch"]["value"])
+            if d["patch"].get("also_remove_pattern"):            # 인자 정의를 형식 없는 문자열로 (D06)
+                set_path(y, d["patch"]["also_remove_pattern"], {"type": "string"})
             text = yaml.safe_dump(y, allow_unicode=True, sort_keys=False)
         else:
             raise ValueError(op)
         text = clean(text.replace(d["target"], new_ref), src.suffix)
-        dst = out_dir / f"{name}@{d['degraded_version']}{src.suffix}"
+        dst = out_dir / FOLDERS[kind] / ns / f"{name}@{d['degraded_version']}{src.suffix}"
+        dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_text(text, encoding="utf-8")
         made.append({"defect": d["id"], "base": d["target"], "degraded": new_ref, "file": str(dst.relative_to(ROOT))})
     return made
@@ -420,7 +434,7 @@ def build_variants(catalog):
 # ---------- finding fixture ----------
 
 def build_findings(catalog, rng):
-    """분석기 없이 SEL 서비스(케이스 상태머신)를 시험하기 위한 finding. 앱 설계 5.1 계약 형식."""
+    """분석기 없이 SEL 서비스(케이스 상태머신)를 시험하기 위한 finding. finding 형식."""
     rows = []
     for d in catalog["defects"]:
         e = d["expect"]
