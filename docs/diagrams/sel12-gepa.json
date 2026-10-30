@@ -5,7 +5,7 @@
   "groups": [
     {
       "id": "p2",
-      "label": "② Improver (GEPA를 켰을 때)",
+      "label": "② Improver (③ 탈락 뒤 2 · 3번째 시도에만 GEPA)",
       "tone": "green"
     },
     {
@@ -34,7 +34,7 @@
     {
       "id": "ad",
       "label": "GEPA 어댑터",
-      "sub": "반성 → 고쳐 쓰기 반복",
+      "sub": "반성 → 고쳐 쓰기 반복 · 병합 끔",
       "group": "p2",
       "tone": "red",
       "emphasis": true
@@ -56,7 +56,7 @@
     {
       "id": "final",
       "label": "최종 후보 하나",
-      "sub": "나머지는 버림",
+      "sub": "나머지는 버림 · 진화 요약을 생성 근거에",
       "group": "p2",
       "emphasis": true
     },
