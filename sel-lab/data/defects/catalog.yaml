@@ -1,7 +1,7 @@
 # 결함 주입 카탈로그 (정답지)
 # 정상 자산에서 결함 하나를 넣은 열화 버전을 만든다. 버전 번호는 결함을 드러내지 않게 평범한 번호를 쓴다. 정답(무엇을 뺐는지)을 알고 있으므로
 # 루프가 finding을 잡았는지, 원인을 맞혔는지, 고쳤는지를 모두 채점할 수 있다.
-# expect(signal · hypothesis_class · change_type)는 분석기 · 상태머신이 쓰는 값이다.
+# expect(pattern · hypothesis_class · change_type)는 분석기 · 상태머신이 쓰는 값이다.
 # examples는 docs/04_SEL_e2e_examples.md의 예시 번호다.
 #
 # answer(W0-6 · W0-7, 2026-10-28): docs/07 · docs/10 기준 정답. expect는 분석기 · 데모가 쓰므로 함께 둔다.
@@ -21,7 +21,7 @@ defects:
     degraded_version: 1.4.3
     patch: {op: remove_rule, rule: period_default}
     expect:
-      signal: tool_error            # R1, ROW_LIMIT_EXCEEDED
+      pattern: tool_arg_error          # R1, ROW_LIMIT_EXCEEDED
       fidelity: full
       hypothesis_class: missing_instruction
       change_type: instruction
@@ -36,7 +36,7 @@ defects:
     degraded_version: 1.4.4
     patch: {op: remove_rule, rule: disambiguation}
     expect:
-      signal: negative_feedback     # R5, 세션 기록의 "그 거래처 말고" 재요청
+      pattern: repeat_question     # R5, 세션 기록의 "그 거래처 말고" 재요청
       fidelity: full
       hypothesis_class: missing_instruction
       change_type: instruction
@@ -51,7 +51,7 @@ defects:
     degraded_version: 1.0.1
     patch: {op: remove_rule, rule: amount_format}
     expect:
-      signal: negative_feedback     # R5, 사용자가 금액 표기를 고쳐 씀
+      pattern: repeat_question     # R5, 사용자가 금액 표기를 고쳐 씀
       fidelity: full
       hypothesis_class: missing_instruction
       change_type: instruction
@@ -65,7 +65,7 @@ defects:
     degraded_version: 1.0.1
     patch: {op: remove_rule, rule: approval}
     expect:
-      signal: eval_fail             # R6, 고정 세트의 승인 요청 케이스 실패
+      pattern: eval_fail             # R6, 고정 세트의 승인 요청 케이스 실패
       fidelity: full
       hypothesis_class: missing_instruction
       change_type: instruction
@@ -80,7 +80,7 @@ defects:
     degraded_version: 1.0.1
     patch: {op: set_field, field: spec.params.max_turns, value: 4}
     expect:
-      signal: budget_exceeded       # R8, 턴 소진 종료
+      pattern: limit_exceeded       # R8, 턴 소진 종료
       fidelity: full
       hypothesis_class: budget_overrun
       change_type: composition      # Agent 허용 필드
@@ -98,7 +98,7 @@ defects:
       value: 계정과목의 월말 잔액을 조회한다.
       also_remove_pattern: spec.input_schema.properties.period
     expect:
-      signal: arg_invalid           # R2, period 형식 위반
+      pattern: tool_arg_error          # R2, period 형식 위반
       fidelity: gateway
       hypothesis_class: description_ambiguity
       change_type: metadata
@@ -112,7 +112,7 @@ defects:
     degraded_version: null          # 자산은 그대로, 실행 환경에 장애 주입
     patch: {op: fault, kind: timeout, rate: 0.15}
     expect:
-      signal: tool_error
+      pattern: tool_arg_error
       platform_signal: true         # 자산을 고쳐서 해결되지 않음 → 자산 finding에서 제외
       route: developer
       fix: SEL은 케이스를 열지 않거나 DISMISSED
@@ -136,7 +136,7 @@ defects:
     degraded_version: null
     patch: {op: none}
     expect:
-      signal: no_asset_match        # R7
+      pattern: no_asset_match        # R7
       fidelity: gateway
       hypothesis_class: missing_asset
       change_type: new_asset
@@ -154,7 +154,7 @@ defects:
       rule: example_currency
       value: "사용자: 가상거래처-0007 9월 미결 알려줘\n답: 가상거래처-0007(90000007), 2026-09 기준 미결 3건, 합계 1,251,200원."
     expect:
-      signal: eval_fail
+      pattern: eval_fail
       fidelity: full
       hypothesis_class: wrong_example
       change_type: example

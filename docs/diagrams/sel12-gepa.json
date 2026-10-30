@@ -1,0 +1,187 @@
+{
+  "title": "GEPA를 넣을 때 바뀌는 곳",
+  "subtitle": "바뀌는 곳은 ② Improver 안뿐 · 빨강 = GEPA 때문에 새로 생기는 것 · 회색 = 다른 담당",
+  "direction": "RIGHT",
+  "groups": [
+    {
+      "id": "p2",
+      "label": "② Improver (GEPA를 켰을 때)",
+      "tone": "green"
+    },
+    {
+      "id": "sel",
+      "label": "SEL 진행 · 저장 (SEL 공통)",
+      "tone": "yellow"
+    },
+    {
+      "id": "out",
+      "label": "다른 담당 (Registry · ③ TBD · Runtime)"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ts",
+      "label": "고정된 시험 문제",
+      "sub": "GEPA는 보지 않는다",
+      "group": "p2"
+    },
+    {
+      "id": "dev",
+      "label": "dev 질문",
+      "sub": "시험 문제와 따로 생성 · 노출 원장 기록",
+      "group": "p2"
+    },
+    {
+      "id": "ad",
+      "label": "GEPA 어댑터",
+      "sub": "반성 → 고쳐 쓰기 반복",
+      "group": "p2",
+      "tone": "red",
+      "emphasis": true
+    },
+    {
+      "id": "gov",
+      "label": "거버넌스 검사",
+      "sub": "중간 후보마다",
+      "group": "p2",
+      "emphasis": true
+    },
+    {
+      "id": "sc",
+      "label": "채점 함수",
+      "sub": "결과 코드 · 서명 소멸 · 정책",
+      "group": "p2",
+      "tone": "red"
+    },
+    {
+      "id": "final",
+      "label": "최종 후보 하나",
+      "sub": "나머지는 버림",
+      "group": "p2",
+      "emphasis": true
+    },
+    {
+      "id": "budget",
+      "label": "예산표",
+      "sub": "SEL 저장소의 케이스 원장에 · 1회 150 실행 · finding당 2회 · 밤 20%",
+      "group": "sel",
+      "tone": "red"
+    },
+    {
+      "id": "orch",
+      "label": "SEL 오케스트레이터",
+      "sub": "예산 넘으면 중단 · Harness · 오케스트레이터 담당",
+      "group": "sel"
+    },
+    {
+      "id": "reg",
+      "label": "Registry",
+      "sub": "중간 후보 = draft (pre-release 번호)",
+      "group": "out",
+      "shape": "db",
+      "emphasis": true
+    },
+    {
+      "id": "tester",
+      "label": "③ 평가의 실행 경로",
+      "sub": "eval · purpose=gepa · overrides.refs",
+      "group": "out",
+      "shape": "queue",
+      "emphasis": true
+    },
+    {
+      "id": "rt",
+      "label": "Agent Runtime",
+      "sub": "eval · 쓰기 Dry-Run · 모델 고정",
+      "group": "out",
+      "shape": "external"
+    },
+    {
+      "id": "ev",
+      "label": "③ 평가",
+      "sub": "candidate만, 시험 문제로",
+      "group": "out",
+      "shape": "external"
+    }
+  ],
+  "edges": [
+    {
+      "from": "dev",
+      "to": "ad",
+      "emphasis": true
+    },
+    {
+      "from": "ad",
+      "to": "gov",
+      "label": "중간 후보",
+      "emphasis": true
+    },
+    {
+      "from": "gov",
+      "to": "reg",
+      "label": "draft 등록",
+      "emphasis": true
+    },
+    {
+      "from": "reg",
+      "to": "tester",
+      "label": "draft ref",
+      "emphasis": true
+    },
+    {
+      "from": "tester",
+      "to": "rt",
+      "emphasis": true
+    },
+    {
+      "from": "rt",
+      "to": "sc",
+      "label": "구조 결과만"
+    },
+    {
+      "from": "sc",
+      "to": "ad",
+      "back": true,
+      "label": "점수 · 텍스트 피드백"
+    },
+    {
+      "from": "orch",
+      "to": "budget",
+      "label": "사용량 기록"
+    },
+    {
+      "from": "budget",
+      "to": "tester",
+      "dashed": true,
+      "label": "상한 확인"
+    },
+    {
+      "from": "ad",
+      "to": "final",
+      "label": "예산 끝 · 개선 멈춤"
+    },
+    {
+      "from": "final",
+      "to": "ev",
+      "label": "candidate 등록 후",
+      "emphasis": true
+    },
+    {
+      "from": "ts",
+      "to": "ev",
+      "dashed": true,
+      "label": "판정에만 사용"
+    }
+  ],
+  "legend": [
+    {
+      "kind": "emphasis",
+      "label": "GEPA 주 경로"
+    },
+    {
+      "kind": "dashed",
+      "label": "확인 · 판정용"
+    }
+  ],
+  "tone": "gray"
+}

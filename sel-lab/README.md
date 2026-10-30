@@ -3,8 +3,8 @@
 SEL(self-evolving loop)을 로컬에서 처음부터 끝까지 돌려보는 실험장. LangGraph + DeepAgents 워커, 가짜 SAP 세계, 결함 주입 자산 위에서
 **finding → Creator → Improver → Tester(쌍대) → Evaluator → Gate → 승인 → 릴리스 → Verifier**를 실행한다.
 
-> **역할 이름 (2026-10-28 기준 문서와의 대응).** 기준 구조는 ① 입력 파이프라인 → ② 자산 생성(Creator: 가설 + 시험 문제 선정, Improver: 후보 생성 + candidate 등록) → ③ 평가 → ④ 반영이다. 이 실험장의 코드에서는 `analyzer.py`가 ①, `sel.py`의 `_creator_*`가 가설, `build_eval_set`이 시험 문제 선정(Creator 단계의 코드), `_improver_*`와 정적 검사가 후보 생성(Improver), `tester.py` · `gate.py`가 ③, `approve` · `verify` · `auto_rollback`이 ④에 해당한다. 함수 이름은 아직 옛 이름 그대로다.
-설계 기준은 모듈 설계 기준 문서의 SEL 구조(① 입력 → ② 자산 생성 → ③ 평가 → ④ 반영)와 ② 설계 문서(docs/07~10)다. 상태머신 · 게이트 · 분석 규칙은 ①③④에 넘긴 제안을 시험하는 lab 구현이다.
+> **역할 이름 (2026-10-28 기준 문서와의 대응).** 기준 구조는 ① 입력 파이프라인 → ② 자산 생성(Creator: 가설 + 시험 문제, Improver: 후보 생성 + candidate 등록) → ③ 평가 → ④ 반영이다. 이 실험장의 코드에서는 `analyzer.py`가 ①, `sel.py`의 `_creator_*`가 가설, `build_eval_set`이 시험 문제(`testgen.py` 생성 → `testset.py` 하네스), `_improver_*`와 정적 검사가 후보 생성(Improver), `tester.py` · `gate.py`가 ③, `approve` · `verify` · `auto_rollback`이 ④에 해당한다. 함수 이름은 아직 옛 이름 그대로다.
+설계 기준은 모듈 설계 기준 문서의 SEL 구조(① 입력 → ② 자산 생성 → ③ 평가 → ④ 반영)와 ① · ② 설계 문서(docs/16, 세부는 docs/07~10)다. 상태머신 · 게이트 · 분석 규칙은 ①③④에 넘긴 제안을 시험하는 lab 구현이다.
 
 docker가 필요 없다. Python 3.11 이상과 패키지 설치만 되면 된다.
 
@@ -43,7 +43,7 @@ DeepSeek 같은 OpenAI 호환 모델이면 그대로 동작한다. 확인할 것
 
 키가 없거나 `SEL_OFFLINE=1`이면 **오프라인 모드**로 돈다:
 - 에이전트 = 규칙 기반 가짜 모델(`fake_llm.py`). 자산에 적힌 지시가 있으면 따르고, 없으면 틀린다. 그래서 결함 버전을 넣으면 실제로 실패한다.
-- Creator = 증거 기반 규칙 대역 (정답지를 보지 않는다).
+- Creator = 증거(실행 구조) 기반 규칙 대역 (사용자 질문과 정답지를 보지 않는다).
 - Improver = **ORACLE**. 정상 버전 원문으로 되돌린다. 배관 검증 전용이며 개선 능력을 재지 않는다.
 
 ## 실행
@@ -62,7 +62,7 @@ LLM 모드에서는 시작할 때 preflight(요청 1건, 도구 호출 여부)�
 ```bash
 # 결함 하나로 처음부터 끝까지 (기준 트래픽 → 결함 주입 → 운영 트래픽 → 분석 → 루프 → 승인 → 반영 후 트래픽 → 검증)
 python -m sel_lab.cli demo D01 --n 250 --k 3 --auto-approve
-python -m sel_lab.cli demo D02 --n 250 --auto-approve --focus open_items_ambiguous:8   # 드문 업무는 비중을 올려야 임계를 넘는다
+python -m sel_lab.cli demo D02 --n 250 --auto-approve --focus open_items_ambiguous:8   # 드문 업무 비중을 올린다(스냅샷 설정)
 ```
 
 단계별로 돌리기:
@@ -91,13 +91,13 @@ trace 화면이 필요하면 `pip install -e ".[phoenix]"` 후 `phoenix serve`�
 
 | 결함 | 신호 | 루프 결과 |
 | --- | --- | --- |
-| D01 기간 기본값 삭제 | R1 tool_error (ROW_LIMIT) | Creator가 대상을 도구가 아니라 SKILL로 짚음 → 게이트 통과 → VERIFIED (오류율 11–13% → 2%) |
-| D02 되묻기 삭제 | R5 재요청 | `--focus`로 비중을 올리면 VERIFIED. 기본 구성에서는 드물어서 임계(지지 20, 주체 3) 미달 |
-| D03 금액 표기 삭제 | R5 수정 | VERIFIED |
-| D04 승인 단계 삭제 | R6 정기 골든셋 실패 | VERIFIED. 운영 트래픽만으로는 전기 담당이 한 명이라 주체 수 임계에 걸림 |
-| D05 max_turns 4 | R8 budget_exceeded | VERIFIED |
-| D06 도구 설명에서 형식 삭제 | R2 arg_invalid | VERIFIED. 같은 원인의 재요청 케이스는 STALE 규칙으로 닫힘 |
-| D07 도구 장애 | 플랫폼 신호 | 자산 케이스를 열지 않음 |
+| D01 기간 기본값 삭제 | `tool_arg_error` (ROW_LIMIT_EXCEEDED) | Creator가 대상을 도구가 아니라 SKILL로 짚음 → 게이트 통과 → VERIFIED (오류율 11.4% → 1.85%) |
+| D02 되묻기 삭제 | `repeat_question` (재요청) | VERIFIED. 스냅샷은 `--focus open_items_ambiguous:8`로 돌리지만, 기본 구성(n=250)에서도 ① 판정 기준을 넘어 VERIFIED였다(2026-10-30, 재요청률 7.2% → 0.8%) |
+| D03 금액 표기 삭제 | `repeat_question` (정정) | VERIFIED |
+| D04 승인 단계 삭제 | `eval_fail` (lab 전용: 정기 골든셋 실패) | VERIFIED. 운영 트래픽의 `tool_arg_error` 케이스도 열리지만, 전기 업무 사례가 전부 고정 세트라 목표가 비어 구조적 HELD → REJECTED |
+| D05 max_turns 4 | `limit_exceeded` | REJECTED. params 허용목록이 비어 있어(PM 결정 전) 생성 전에 `governance_rejected` |
+| D06 도구 설명에서 형식 삭제 | `tool_arg_error` (ARG_INVALID) | VERIFIED. 같은 원인의 재요청 케이스는 STALE 규칙으로 닫힘 |
+| D07 도구 장애 | 플랫폼 신호(TIMEOUT) | 자산 케이스를 열지 않음 |
 
 이 결과는 **배관이 맞게 연결됐다**는 뜻이다. 오프라인 Improver가 정답(정상 버전)을 내므로, 개선 능력은 사내 LLM으로 돌려야 잴 수 있다.
 
@@ -111,8 +111,10 @@ trace 화면이 필요하면 `pip install -e ".[phoenix]"` 후 `phoenix serve`�
 | `sel_lab/scorer.py` | 규칙 채점 |
 | `sel_lab/tester.py` | 쌍대 실행 (기준 팔 · 후보 팔 × k) |
 | `sel_lab/gate.py` | 게이트 (③ 평가에 넘긴 제안의 lab 구현): G1 LCB>0 & MMI, G2 비열등(δ 0.05), G3a 정책 규칙 위반 0, G3b 사례 수 보정 Fisher 검정(고정 k=10), 회귀 = 완전 붕괴 수 ≤ 허용치(기준 통과율로 계산한 포아송 95% 분위), G4 판정 가능(목표·가드 각 2건 미만이면 구조적 HELD → REJECTED) |
-| `sel_lab/analyzer.py` | 폴백 분석기 R1, R2, R5, R6, R7, R8 |
-| `sel_lab/sel.py` | 케이스 상태머신, Creator, Improver, 정적 검사, 노출 원장, 판정 세트 추출(코드), 판정 예산·억제, 승인·릴리스·검증, CAS 자동 롤백 |
+| `sel_lab/analyzer.py` | ① 대역. 기준 문서 패턴 `tool_arg_error` · `limit_exceeded` · `repeat_question` + lab 전용 `eval_fail` · `no_asset_match`, 판정 기준은 ① 값 |
+| `sel_lab/sel.py` | 케이스 상태머신, Creator, Improver, 정적 검사, 판정 세트 구성(`build_eval_set`: 생성 → 하네스), 판정 예산·억제, 승인·릴리스·검증, CAS 자동 롤백 |
+| `sel_lab/testgen.py` | 시험 문제 생성. finding만 보고 질문 유형을 정하고(오프라인은 규칙 대역) `gen/build.py` 케이스 생성기로 질문 · 채점 기준을 만든다. `runs/generated_cases.jsonl`에 저장 |
+| `sel_lab/testset.py` | 하네스. 생성 질문을 지금 버전으로 탐침해 목표 · 정상을 남기고 고정 세트를 더해 잠근다 |
 | `sel_lab/cli.py` | 명령 |
 | `gen/build.py` | 가짜 데이터 재생성 |
 
@@ -128,9 +130,9 @@ DeepAgents `create_deep_agent`는 파일 도구(ls, read_file, write_file 등)�
 - 파일: `data/assets/<종류>s/<ns>/<이름>@<버전>.<확장자>`, 결함 버전은 `data/assets/variants/` 아래 같은 구조, SEL 후보는 `runs/registry/candidates/` 아래 같은 구조.
 - tool · agent(YAML): `kind` · `metadata{ref, grade}` · `spec`. tool `spec`은 `name` · `description` · `input_schema` · `side_effect` · `required_capability` · `dry_run` · `idempotency` · `timeout_s` · `binding`(+ lab 확장 `row_limit` · `errors` · `output`). agent `spec`은 `preset` · `prompt` · `skills` · `tools` · `extensions` · `params`(+ lab 확장 `runtime` · `model`).
 - skill · prompt(Markdown): front matter `kind` · `metadata{ref, grade}` · `description` · `allowed_tools`(스킬별 허용 도구) · `role` + 본문. 이 형식은 Protocol P2 Asset이 정해지면 `registry.parse`만 고친다.
-- 이관 기록: `gen/migrate_w0.py`(일회성). 이관 전후 오프라인 demo 결과가 같음을 확인했다(케이스 ID 시드를 같게 둘 때 10종 모두 일치). 고정된 결과는 `tests/snapshots/w0_demo.json`, 검사는 `pytest`(빠른 검사)와 `pytest -m slow`(demo 전체, 약 1.5분).
+- 이관 기록: `gen/migrate_w0.py`(일회성). 이관 전후 오프라인 demo 결과가 같음을 확인했다(케이스 ID 시드를 같게 둘 때 10종 모두 일치). 고정된 결과는 `tests/snapshots/demo.json`, 검사는 `pytest`(빠른 검사)와 `pytest -m slow`(demo 전체, 약 1.5분).
 - 결함 카탈로그(`data/defects/catalog.yaml`)의 `answer`가 새 기준 정답이다(`cause_class` · `change_kind` · `target_address` · `c6`). 기존 `expect`는 대응을 위해 남겼다.
-- 케이스 ID는 finding 키에서 결정적으로 만든다(시험 문제 분할 시드와 후보 버전이 여기서 나오므로). D02는 목표 사례가 2~3건뿐이라 시드에 따라 결과가 바뀐다. 시험 문제 선정(W9)에서 다룬다.
+- 케이스 ID는 finding 키에서 결정적으로 만든다(시험 문제 생성 시드와 후보 버전이 여기서 나오므로).
 
 ## 편집 명령 (W1, 2026-10-28)
 
@@ -144,22 +146,29 @@ Improver는 자산 원문을 다시 쓰지 않고 **편집 명령 묶음**을 �
 - LLM 모드 Improver는 아직 원문을 돌려준다. 편집 명령 프롬프트는 W7에서 바꾼다.
 - 표준 라이브러리 + PyYAML만 쓴다(검증기를 jsonschema 없이 직접 구현).
 
-## 시험 문제 선정 (W9, 2026-10-28)
+## 시험 문제 생성 + 하네스 (W9, 2026-10-28 · 생성으로 교체 2026-10-30)
 
-`sel_lab/testset.py`. 시험 문제는 LLM이 만들지 않고 코드가 골라 고정한다. 순서와 이유는 `docs/11` 2장.
+시험 문제는 미리 만든 문제은행에서 고르지 않고 finding마다 새로 만든다(설계 `docs/16` 6장 · 8장). 사용자 질문은 쓰지 않는다.
 
-| 기존 lab | W9 |
-| --- | --- |
-| `build_eval_set`: held-out 전체를 2회 탐침, 한 번이라도 실패하면 목표 | `testset.select`: 가설 대상 자산의 업무로 범위 → 2회 탐침, 1회만 실패하면 3회째 → **서명 일치 실패 2회 이상**이 과거 실패, 2회 모두 통과가 정상 |
-| 서명 없음 | 분석기가 finding에 `signature`를 붙인다(도구 오류 = 도구 + 오류 코드, 예산 초과 = 실행 상태, eval 실패 = 실패 검사 이름, 재요청 = 없음) |
-| 가드 = 통과 사례 무작위 | 정상 = 업무 유형별 층화. 범위 안이 모두 실패하면 범위 밖 정상으로 채움 |
-| 고정 세트 앞 4건 | 고정(필수 · 정책) 케이스 전부 |
-| 고정 기록 없음 | `testset` 테이블: 세트 ID · `frozen_at` · 항목(입력 해시). 판정 전 세트의 항목이 노출되면 무효 → 판정 직전에 다시 고정 |
-| 사용 횟수 없음 | `case_usage`: 판정에 쓰인 횟수. 50회 넘으면 제외(고정 세트는 세지 않음) |
+1. **생성** `sel_lab/testgen.py` `generate()`: 생성 LLM은 finding(패턴 · 서명 · hint · 자산)만 본다. Creator의 가설과 Improver의 후보는 보지 않는다. 오프라인에서는 규칙 대역이 finding의 자산으로 질문 유형을 고른다(결함 범위 유형당 8건, 그 밖의 유형당 2건). 질문 문장과 채점 기준은 가짜 ERP 케이스 생성기(`gen/build.py`)로 만든다. 실험장의 ③ 대역이 규칙 채점이라 정답을 세계 데이터에서 계산해야 하기 때문이다(실제 시스템은 생성 LLM이 문장을 쓰고 ③은 정답지 없이 규칙 검사 + 쌍대 비교로 판정). 만든 질문은 `runs/generated_cases.jsonl`에 쌓인다.
+2. **하네스** `sel_lab/testset.py` `select()`: 생성 질문을 지금 버전으로 2회 탐침, 1회만 실패하면 3회째 → **서명 일치 실패 2회 이상**이 목표, 2회 모두 통과가 정상(업무 유형별 층화). 채점이 안 되거나 경계에서 서명이 안 맞는 질문은 제외한다. 설계의 "시험 데이터 범위 밖 질문 버리기"는 생성기가 세계 데이터 안에서만 만들어서 따로 구현하지 않았다. 필수 · 정책 케이스(승인 단계 · 인젝션 내성)는 사람이 만든 고정 세트(`data/eval/cases.jsonl`의 `fixed`)에서 매번 전부 넣는다.
+3. **고정**: `testset` 테이블에 세트 ID · `frozen_at` · 항목(입력 해시)을 남기고 ③에 넘긴다. Creator · Improver에는 보여주지 않는다.
 
-**서명 대체 규칙**: 같은 결함이 입력에 따라 다르게 드러난다. D01은 운영(대량 거래처)에서 ROW_LIMIT 오류로 보이지만 평가 사례(소량)에서는 "기간 범위 미표시" 검사 실패로 보인다. 그래서 서명 일치가 2건 미만이면 같은 범위에서 반복 실패한 입력으로 채우고 `test_set.stats.rule`에 남긴다. 서명에 인자 모양(예: 기간 인자 없이 호출)을 넣는 것은 ①에 제안한다.
+`sel.build_eval_set`이 `testgen.generate` → `testset.select` 순으로 부른다. 분석기는 finding에 `signature`를 붙인다(도구 오류 = 도구 + 결과 코드, 예산 초과 = 실행 상태, eval 실패 = 실패 검사 이름, 재요청 = 없음). 서명이 없는 finding은 반복 실패로 목표를 채우고 `rule = repeat_failure(no signature)`로 남긴다.
 
-W9 뒤 데모: D02가 REJECTED → VERIFIED로 바뀌었고 나머지 9종은 결과가 같다. 스냅샷은 `tests/snapshots/demo.json`.
+**D01 실측 (오프라인 demo, n=250, k=3)**
+
+| | 문제은행에서 고를 때 (10-28) | 생성 + 하네스 (10-30) |
+| --- | --- | --- |
+| 재료 | 범위 68건 | 질문 44건 생성 |
+| 탐침 | 136회 | 88회 |
+| 서명 일치 실패 | 0 → 반복 실패로 대신 채움 | 8 |
+| 고정 세트 | 목표 6 · 정상 8 · 고정 15 = 29 | 목표 8 · 정상 8 · 고정 15 = 31 |
+| `rule` | `repeat_failure(fallback: signature matched 0)` | `signature` |
+
+게이트 결과(D01 VERIFIED)와 결함 10종 demo 결과는 바뀌지 않았다. 문제은행 때는 ROW_LIMIT을 재현하는 사례가 (당시 쓰던) 노출 원장에 걸려 빠져서 ③이 ROW_LIMIT을 직접 보지 못했는데, 생성으로 바꾸자 같은 서명의 실패가 목표에 들어왔다.
+
+**서명 대체 규칙(남은 코드)**: 서명 일치가 2건 미만이면 같은 범위에서 반복 실패한 질문으로 채우고 `test_set.stats.rule`에 남긴다. 설계는 이 경우 "판정 불가"(`insufficient_set`)로 끝내므로 정리 대상이다.
 
 ## 거버넌스 정책 · 검사기 (W2 · W3, 2026-10-28)
 
@@ -189,16 +198,18 @@ W9 뒤 데모: D02가 REJECTED → VERIFIED로 바뀌었고 나머지 9종은 �
 
 - 결함 버전은 평범한 버전 번호를 쓴다 (`-d01` 같은 표지 없음). 규칙 마커는 원본(`data/assets_src/`)에만 있고 루프가 보는 `data/assets/`에는 없다.
 - 운영 실행 기록에는 평가 케이스 ID를 넣지 않는다. 시뮬레이터 대응표는 `runs/traces/sim_index.jsonl`에 따로 두고 루프는 읽지 않는다.
-- 세션 기록에는 채점 항목 이름이 아니라 사용자 발화만 남긴다.
+- 세션 기록에는 채점 항목 이름을 넣지 않고 사용자 발화만 남긴다(가짜 세계의 기록). 루프는 그중 이벤트 종류(재요청 · 정정)만 쓰고, Creator에는 발화 내용을 넘기지 않는다.
 - Creator 가설의 대상은 항상 현재 활성 버전으로 강제한다.
-- 노출 원장(`exposure` 테이블): Creator 증거로 들어간 입력의 해시를 남긴다. 같은 입력의 골든셋 사례는 held-out에 들어가지 않는다.
-- 판정 세트는 코드가 뽑는다. 현행 버전으로 held-out을 2회 먼저 돌려(기준 실패 탐침) 실패한 사례를 목표, 모두 통과한 사례를 가드로 쓴다(`build_eval_set`). Creator가 낸 target_kinds·guard_kinds는 세트 선정에 쓰지 않는다. 운영 설계의 실패 서명 일치 필터는 아직 없다.
+- Creator는 실행 구조만 보고 사용자 질문은 보지 않는다. 시험 문제는 finding마다 새로 만들고(`testgen`) Creator · Improver에 보여주지 않으므로, held-out이 구조로 지켜진다. 노출 원장은 설계에 없다.
+- 생성기는 finding만 보고, 남길 질문은 하네스(`testset.select`)가 실행 결과로 정한다. Creator가 낸 target_kinds·guard_kinds는 세트 구성에 쓰지 않는다.
 
 ## PRD와 다른 점 (lab 단순화)
 
+- 후보 버전 번호는 `sel.py` `_bump`가 patch를 올리고 케이스 접미를 붙인다(`x.y.(z+1)-c…`). 설계는 minor만 · Registry 배정이다(docs/07 · 09 C3). W8-2 가짜 Registry에서 맞춘다.
+- 노출 원장 · 사용 횟수 코드(`exposure` · `case_usage` 테이블, `sel.expose` · `split_golden`, `testset.invalidate_exposed` · 사용 상한 50회)가 남아 있다. 루프는 `expose`를 부르지 않고, 사용 상한은 매번 새 ID인 생성 질문에는 걸리지 않는다. 설계에는 없으므로(GEPA를 켤 때만 필요) W5에서 정리한다.
+
 - 군집 보정, judge 선호 점수, 케이스별 MMI 고정, 게이트 조기 종료 순서, 증거 구획(W4), 평가 사례 자동 격리는 아직 구현하지 않았다. 증거 구획이 없어 SEL 연결에서는 검사기에 증거를 넘기지 않는다(유입 유사도 · 누출 복사 · 등급 검사는 단위 시험으로만 확인). LLM 모드 Improver는 아직 전체 본문을 내므로 옛 정적 검사(`static_check`)를 쓴다(W7에서 편집 명령으로).
 - Verifier(`verify`)는 트리거 배치 대비 발생률이 절반 이하인지로 판정한다. ④에 제안한 "트리거 구간을 뺀 비교 + 대조군" 방식이 아니다. lab은 배치가 기준(b0)·트리거(b1)·반영 후(b2) 셋뿐이라 그렇다. 악화면 CAS(현재 활성 == 릴리스 버전)가 성립할 때만 직전 버전으로 자동 롤백하고, 아니면 기록만 남긴다.
-- 골든셋에 template_id가 없어 사례 하나를 템플릿 하나로 보고, 업무 유형마다 dev 2건을 떼고 나머지를 held-out으로 쓴다. 판정 사례당 사용 상한(10회)은 세지 않는다.
 - document_post는 사례가 전부 고정(정책)이라 목표 세트가 비어 구조적 HELD → REJECTED가 된다. 의도된 동작이다.
 - 게이트 판정에서 떨어지면(GATE_FAILED) 케이스는 OPEN으로 돌아가 Creator가 가설부터 다시 세운다. finding당 판정 3회를 쓰면 REJECTED, 이후 같은 dedupe_key는 열지 않는다. 거버넌스 검사에 걸린 것은 Creator로 돌아가지 않고 Improver가 다시 쓴다(위 W2).
 

@@ -2,7 +2,7 @@
 
 평가에서는 케이스에 적힌 답(simulator_reply)으로 결정적으로 응답한다 (LLM 불필요).
 운영 트래픽 시뮬레이션에서는 실행 결과가 틀렸을 때 persona 확률로 재요청·수정을 남긴다.
-이 세션 기록이 R5(negative_feedback)와 R7(no_asset_match)의 원천이다.
+이 세션 기록이 repeat_question(재요청 · 정정)과 lab 전용 no_asset_match의 원천이다. 루프는 이벤트 종류만 쓰고 발화 내용은 Creator에 넘기지 않는다.
 """
 from __future__ import annotations
 

@@ -87,7 +87,7 @@ def run(user_message: str, *, user_id: str, source: str, overrides: dict | None 
                  rng=random.Random(seed))
     max_turns = int((bundle["agent"].spec.get("params") or {}).get("max_turns", 12))
     from langchain.agents.middleware import ModelCallLimitMiddleware
-    # max_turns = 사용자 턴 하나에서 허용하는 모델 호출 수. 넘으면 그때까지의 기록을 남기고 끝낸다 (R8 budget_exceeded)
+    # max_turns = 사용자 턴 하나에서 허용하는 모델 호출 수. 넘으면 그때까지의 기록을 남기고 끝낸다 (실행 상태 budget_exceeded → ① 패턴 limit_exceeded)
     mw = [ModelCallLimitMiddleware(run_limit=max_turns, exit_behavior="end")]
     if worker_kind() == "deepagents":
         from deepagents import create_deep_agent

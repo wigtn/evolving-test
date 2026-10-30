@@ -14,7 +14,7 @@
     },
     {
       "id": "sel",
-      "label": "SEL (Agent Runtime 위 SEL 오케스트레이터)",
+      "label": "SEL (Agent Runtime 위)",
       "tone": "violet"
     },
     {
@@ -43,8 +43,8 @@
     },
     {
       "id": "rt",
-      "label": "Agent Runtime · Harness",
-      "sub": "모든 에이전트 실행 · span에 erp.asset.refs",
+      "label": "Agent Runtime (Aegra) · Harness",
+      "sub": "모든 에이전트 실행 · span에 erp.asset.refs\nLLM은 사내 클라우드 LLM Gateway 경유",
       "group": "req"
     },
     {
@@ -56,7 +56,7 @@
     {
       "id": "phx",
       "label": "Phoenix",
-      "sub": "OTLP 실행 기록 (관측 적재는 다른 팀)",
+      "sub": "OTLP 실행 기록 (관측 적재는 ARD 팀)",
       "shape": "db",
       "group": "obs"
     },
@@ -64,6 +64,12 @@
       "id": "sched",
       "label": "스케줄러",
       "sub": "매시 수집 · 업무 적은 시간 평가 · 7일 뒤 확인",
+      "group": "sel"
+    },
+    {
+      "id": "so",
+      "label": "SEL 오케스트레이터",
+      "sub": "상태 없음 · 스케줄러 · Admin UI 요청을 받아\nCreator · Improver · Evaluator 단계 진행",
       "group": "sel"
     },
     {
@@ -122,7 +128,7 @@
     {
       "id": "reg",
       "label": "Registry",
-      "sub": "draft → candidate → approved\n불변 버전 + 릴리스 지정",
+      "sub": "draft → candidate → approved(사람만) · rejected\n불변 버전 + 릴리스 지정 · DBC 경유 PostgreSQL\noutbox → Kafka erp.asset.release.v1",
       "shape": "db",
       "group": "store"
     }
@@ -139,12 +145,12 @@
     {
       "from": "orch",
       "to": "rt",
-      "label": "P1 위임"
+      "label": "P1 위임 메시지 (규약)"
     },
     {
       "from": "rt",
       "to": "tg",
-      "label": "도구 호출"
+      "label": "도구 호출 (공통 진입점 경유)"
     },
     {
       "from": "rt",
@@ -159,7 +165,17 @@
     {
       "from": "phx",
       "to": "p1",
-      "label": "Phoenix API 조회"
+      "label": "Trace API (phoenix.client)"
+    },
+    {
+      "from": "sched",
+      "to": "so",
+      "label": "트리거"
+    },
+    {
+      "from": "so",
+      "to": "cr",
+      "label": "단계 진행"
     },
     {
       "from": "p1",
@@ -205,7 +221,7 @@
     {
       "from": "ev",
       "to": "cr",
-      "label": "탈락 → 다시 (finding당 후보 3개까지)",
+      "label": "탈락 → 다시 (finding당 후보 3개까지, 제안)",
       "back": true
     },
     {
@@ -235,7 +251,7 @@
     {
       "from": "reg",
       "to": "rt",
-      "label": "다음 요청부터 새 버전",
+      "label": "Kafka 릴리스 알림 · 다음 요청부터 새 버전",
       "back": true
     }
   ],

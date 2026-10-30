@@ -69,7 +69,8 @@ def test_set_active_records_history_and_lifecycle():
     prev = registry.set_active("asset://skill/fi/open-items@1.4.3", "test", "pytest")
     st = registry.read_state()
     assert prev == "1.4.2" and st["active"]["asset://skill/fi/open-items"] == "1.4.3"
-    assert st["lifecycle"]["asset://skill/fi/open-items@1.4.2"] == "retired"
+    assert st["lifecycle"]["asset://skill/fi/open-items@1.4.2"] == "deprecated"   # 기준 문서 그림 4
+    assert st["lifecycle"]["asset://skill/fi/open-items@1.4.3"] == "approved"
     assert st["history"][-1] == {"base": "asset://skill/fi/open-items", "from": "1.4.2", "to": "1.4.3",
                                  "reason": "test", "actor": "pytest"}
     registry.init_state(force=True)
@@ -227,10 +228,10 @@ def test_static_check_rejects_no_change():
 # ---------- 결정성 ----------
 
 def _finding(key="k-test"):
-    return {"finding_id": "f1", "dedupe_key": key, "signal": "tool_error", "fidelity": "full",
-            "target": {"asset_ref": "asset://tool/fi/open-items-query@1.0.0", "channel": "runtime"},
-            "hypothesis_class": "description_ambiguity", "evidence": [], "max_grade": 0,
-            "metrics": {"support": 30, "distinct_principals": 4, "rate": 0.1, "baseline_rate": 0.02, "reach_weekly": 100}}
+    return {"finding_id": "f1", "dedupe_key": key, "pattern": "tool_arg_error",
+            "asset_ref": "asset://tool/fi/open-items-query@1.0.0", "hint": "description_ambiguity", "examples": [],
+            "metrics": {"runs": 300, "fail_rate": 0.1, "baseline_fail_rate": 0.02},
+            "_lab": {"fidelity": "full", "batch": None, "new_asset": None}}
 
 
 def test_case_id_is_deterministic(tmp_path, monkeypatch):

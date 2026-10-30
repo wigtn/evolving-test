@@ -1,6 +1,8 @@
 """실행 기록 저장. 항상 runs/traces/에 JSONL로 남기고, SEL_OTLP_ENDPOINT가 있으면 Phoenix로도 보낸다.
 
-span 속성은 플랫폼 계약 이름을 따른다: erp.run_id, erp.asset.refs, erp.run.source, erp.eval.case_id, erp.eval.arm.
+span 속성 이름: 기준선(기준 문서 7 · 11장) erp.request_id · erp.asset.refs · erp.outcome.type,
+제안(docs/09 C5 · 4.4-1~4) erp.run_mode · erp.sel.case_id · erp.sel.purpose · erp.tool.name · erp.tool.result_code.
+정본은 Protocol common/span-attributes.md가 나오면 그것을 따른다. erp.lab.arm은 lab 전용(쌍대 실행의 기존/후보 구분).
 """
 from __future__ import annotations
 
@@ -47,24 +49,25 @@ def record_run(rec: dict) -> None:
         return
     with t.start_as_current_span("agent.run") as s:
         s.set_attribute("openinference.span.kind", "AGENT")
-        s.set_attribute("erp.run_id", rec["run_id"])
-        s.set_attribute("erp.run.source", rec["source"])
+        s.set_attribute("erp.request_id", rec["run_id"])        # lab은 요청 1건 = 실행 1건
+        s.set_attribute("erp.run_mode", "eval" if rec["source"] == "eval" else "interactive")
         s.set_attribute("erp.asset.refs", rec["asset_refs"])
+        s.set_attribute("erp.outcome.type", rec.get("status") or "ok")
         s.set_attribute("input.value", rec["user_message"])
         s.set_attribute("output.value", rec["final_answer"])
         if rec.get("case_id"):
-            s.set_attribute("erp.eval.case_id", rec["case_id"])
-            s.set_attribute("erp.eval.arm", rec.get("arm") or "")
+            s.set_attribute("erp.sel.case_id", rec["case_id"])
+            s.set_attribute("erp.sel.purpose", "judge")         # lab의 eval 실행은 ③ 쌍대 판정용
+            s.set_attribute("erp.lab.arm", rec.get("arm") or "")
         for c in rec["tool_calls"]:
             with t.start_as_current_span(f"tool.{c['name']}") as ts:
                 ts.set_attribute("openinference.span.kind", "TOOL")
                 ts.set_attribute("tool.name", c["name"])
+                ts.set_attribute("erp.tool.name", c["name"])
                 ts.set_attribute("input.value", json.dumps(c["args"], ensure_ascii=False))
                 r = c.get("result") or {}
                 err = r.get("error") if isinstance(r, dict) else None
-                ts.set_attribute("erp.tool.result_class", "error" if err else "ok")
-                if err:
-                    ts.set_attribute("erp.tool.error", err)
+                ts.set_attribute("erp.tool.result_code", err or "OK")
 
 
 def record_session(row: dict) -> None:

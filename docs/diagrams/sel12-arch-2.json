@@ -1,0 +1,205 @@
+{
+  "title": "② 자산 생성 — finding에서 candidate까지",
+  "subtitle": "같은 결함이면 열린 케이스에 붙인다 · 시험 문제는 별도 LLM이 finding 패턴으로 만들고 하네스가 지금 버전으로 돌려 거른다 · 사용자 질문은 쓰지 않는다 · 초록 = ② 담당 · 노랑 = SEL 공통 · 회색 = 다른 담당",
+  "direction": "RIGHT",
+  "tone": "gray",
+  "groups": [
+    {
+      "id": "selc",
+      "label": "SEL 공통 (진행 · 저장)",
+      "tone": "yellow"
+    },
+    {
+      "id": "p2",
+      "label": "② 자산 생성",
+      "tone": "green"
+    },
+    {
+      "id": "infra",
+      "label": "사내 클라우드"
+    },
+    {
+      "id": "next",
+      "label": "다음 단계 (다른 담당)"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "kafka",
+      "label": "Kafka",
+      "sub": "① finding",
+      "group": "infra",
+      "shape": "queue",
+      "emphasis": true
+    },
+    {
+      "id": "orch",
+      "label": "SEL 오케스트레이터",
+      "sub": "케이스 열기 · Harness · 오케스트레이터 담당",
+      "group": "selc",
+      "emphasis": true
+    },
+    {
+      "id": "store",
+      "label": "SEL 저장소",
+      "sub": "실행 기록 요약(구조만)\n케이스 원장 · 필수 · 정책 케이스\nSEL이 직접 읽고 씀",
+      "group": "selc",
+      "shape": "db"
+    },
+    {
+      "id": "cr",
+      "label": "Creator",
+      "sub": "실행 구조로 원인 가설",
+      "group": "p2",
+      "emphasis": true
+    },
+    {
+      "id": "ts",
+      "label": "시험 문제 생성",
+      "sub": "LLM: 패턴으로 질문 생성\n하네스: 돌려서 거르고 잠금",
+      "group": "p2",
+      "emphasis": true
+    },
+    {
+      "id": "im",
+      "label": "Improver",
+      "sub": "후보 하나 · 거버넌스 검사",
+      "group": "p2",
+      "emphasis": true
+    },
+    {
+      "id": "llm",
+      "label": "사내 LLM Gateway",
+      "sub": "가설 · 시험 문제 · 편집 명령",
+      "group": "infra",
+      "shape": "external"
+    },
+    {
+      "id": "reg",
+      "label": "Registry",
+      "sub": "자산 버전 원장 · Runtime · Registry 담당",
+      "group": "next",
+      "shape": "db",
+      "emphasis": true
+    },
+    {
+      "id": "ev",
+      "label": "③ 평가 · TBD",
+      "sub": "Tester: 기존 vs 후보 실행\nEvaluator: 쌍대 비교 · MDI",
+      "group": "next",
+      "emphasis": true
+    },
+    {
+      "id": "ap",
+      "label": "④ 반영 · 미배정",
+      "sub": "Admin UI: 사람 승인\nPromoter: 릴리스 이동\nVerifier: 7일 뒤 확인",
+      "group": "next",
+      "emphasis": true
+    },
+    {
+      "id": "evr",
+      "label": "eval 실행",
+      "sub": "Runtime · 쓰기 Dry-Run\nRuntime · Registry 담당 · Harness · 오케스트레이터 담당",
+      "group": "next"
+    }
+  ],
+  "edges": [
+    {
+      "from": "kafka",
+      "to": "orch",
+      "label": "finding",
+      "emphasis": true
+    },
+    {
+      "from": "orch",
+      "to": "store",
+      "label": "케이스 기록"
+    },
+    {
+      "from": "orch",
+      "to": "cr",
+      "label": "케이스 열기",
+      "emphasis": true
+    },
+    {
+      "from": "store",
+      "to": "cr",
+      "dashed": true,
+      "label": "실패 실행 구조"
+    },
+    {
+      "from": "cr",
+      "to": "ts",
+      "emphasis": true
+    },
+    {
+      "from": "ts",
+      "to": "im",
+      "emphasis": true
+    },
+    {
+      "from": "cr",
+      "to": "llm",
+      "dashed": true
+    },
+    {
+      "from": "im",
+      "to": "llm",
+      "dashed": true
+    },
+    {
+      "from": "im",
+      "to": "reg",
+      "label": "candidate",
+      "emphasis": true
+    },
+    {
+      "from": "reg",
+      "to": "ev",
+      "emphasis": true
+    },
+    {
+      "from": "ev",
+      "to": "ap",
+      "label": "통과",
+      "emphasis": true
+    },
+    {
+      "from": "ap",
+      "to": "reg",
+      "back": true,
+      "label": "승인 시 릴리스 이동"
+    },
+    {
+      "from": "store",
+      "to": "ts",
+      "dashed": true,
+      "label": "필수 · 정책 케이스"
+    },
+    {
+      "from": "ts",
+      "to": "llm",
+      "dashed": true
+    },
+    {
+      "from": "ts",
+      "to": "evr",
+      "dashed": true,
+      "label": "지금 버전으로 2번씩"
+    }
+  ],
+  "legend": [
+    {
+      "kind": "emphasis",
+      "label": "주 경로"
+    },
+    {
+      "kind": "dashed",
+      "label": "읽기 · 호출"
+    },
+    {
+      "kind": "external",
+      "label": "범위 밖 서비스"
+    }
+  ]
+}

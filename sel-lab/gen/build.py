@@ -438,23 +438,28 @@ def build_findings(catalog, rng):
     rows = []
     for d in catalog["defects"]:
         e = d["expect"]
-        if "signal" not in e:
+        if "pattern" not in e:
             continue
         target = f"{d['target'].split('@')[0]}@{d['degraded_version']}" if d.get("degraded_version") else d["target"]
         support = rng.randint(40, 400)
         rate = round(rng.uniform(0.04, 0.12), 3)
         rows.append({
-            "finding_id": f"fx-{d['id']}-{stable_id(d['id'])}",
-            "analyzer": {"name": "fixture", "version": "0.1.0"},
+            "finding_id": f"fnd_2026_10_{int(stable_id(d['id']), 16) % 10**8:08d}",
+            "asset_ref": None if e.get("change_type") == "new_asset" else target,
+            "pattern": e["pattern"],
             "window": {"from": "2026-10-20T00:00:00Z", "to": "2026-10-27T00:00:00Z"},
-            "fidelity": e.get("fidelity", "full"), "signal": e["signal"],
-            "target": {"asset_ref": None if e.get("change_type") == "new_asset" else target, "channel": "runtime",
-                       **({"proposed_kind": "skill"} if e.get("change_type") == "new_asset" else {})},
-            "hypothesis_class": e.get("hypothesis_class"),
-            "metrics": {"support": support, "distinct_principals": rng.randint(3, 8), "rate": rate,
-                        "baseline_rate": round(rate / rng.uniform(2.0, 4.0), 3), "reach_weekly": rng.randint(800, 5000)},
-            "evidence": [], "max_grade": 0,
-            "platform_signal": bool(e.get("platform_signal")),
+            "metrics": {"runs": round(support / rate), "fail_rate": rate,
+                        "baseline_fail_rate": round(rate / rng.uniform(2.0, 4.0), 3)},
+            "examples": [f"run-fixture-{d['id'].lower()}-{i}" for i in range(3)],
+            "hint": e.get("hypothesis_class") or "",
+            "schema_version": "1",
+            "attribution": "platform" if e.get("platform_signal") else "asset",
+            "fixable_by": "human" if e.get("platform_signal") else "sel",
+            "confidence": "ok", "affected_requests": support, "recurrence": 0,
+            "dedupe_key": f"{(target or 'new').split('@')[0]}|{e['pattern']}",
+            "signature": None,
+            "_lab": {"analyzer": "fixture-0.2", "batch": None, "fidelity": e.get("fidelity", "full"),
+                     "new_asset": {"kind": "skill"} if e.get("change_type") == "new_asset" else None},
             "_ground_truth": {"defect": d["id"], "expected_fix": e.get("fix"), "route": e.get("route", "sel")},
         })
     return rows

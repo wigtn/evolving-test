@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wigtn.com/schemas/sel/finding.v1.schema.json",
+  "title": "SEL finding v1",
+  "description": "Output of SEL input pipeline (기준 문서 section 11). The first seven properties are the agreed contract; the rest are optional extensions pending agreement with Creator.",
+  "type": "object",
+  "required": [
+    "finding_id",
+    "asset_ref",
+    "pattern",
+    "window",
+    "metrics",
+    "examples",
+    "hint"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "finding_id": {
+      "type": "string",
+      "pattern": "^fnd_[0-9]{4}_[0-9]{2}_[0-9]{4,}$"
+    },
+    "asset_ref": {
+      "type": "string",
+      "pattern": "^asset://[a-z0-9_-]+/[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+@[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "pattern": {
+      "enum": [
+        "tool_arg_error",
+        "wrong_tool_selection",
+        "user_approval_rejected",
+        "limit_exceeded",
+        "repeat_question"
+      ]
+    },
+    "window": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "runs",
+        "fail_rate",
+        "baseline_fail_rate"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "runs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fail_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "baseline_fail_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "examples": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string"
+      }
+    },
+    "hint": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "attribution": {
+      "enum": [
+        "asset",
+        "platform",
+        "unknown"
+      ]
+    },
+    "fixable_by": {
+      "enum": [
+        "sel",
+        "human"
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "ok",
+        "low_confidence"
+      ]
+    },
+    "affected_requests": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "recurrence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dedupe_key": {
+      "type": "string",
+      "description": "② 요청: 버전을 뺀 자산 + 패턴. 릴리스로 버전이 바뀌어도 같은 결함으로 이어 센다"
+    },
+    "signature": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "② 요청: 실패 서명(outcome_type · tool · result_code · arg_path · arg_shape). 시험 문제 선정용",
+      "properties": {
+        "outcome_type": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "result_code": {
+          "type": "string"
+        },
+        "arg_path": {
+          "type": "string"
+        },
+        "arg_shape": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "failed_checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$comment": "① sel-ingest finding.v1 스키마 사본(2026-10-30). properties의 dedupe_key · signature는 ②가 ①에 요청한 확장이다(합의 전). sel-lab은 lab 전용 값을 _lab 아래에 두고, 검사할 때는 _lab을 뺀다."
+}

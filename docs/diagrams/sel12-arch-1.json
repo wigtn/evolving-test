@@ -1,0 +1,159 @@
+{
+  "title": "① 입력 파이프라인 — 실행 기록에서 finding까지",
+  "subtitle": "에이전트가 돌 때마다 Phoenix에 계속 쌓인다(왼쪽) · ①은 매시 한 번 깨어나 직전 1시간치를 한꺼번에 가져간다(오른쪽) · 스케줄러는 깨우기만 한다",
+  "direction": "RIGHT",
+  "tone": "gray",
+  "groups": [
+    {
+      "id": "obs",
+      "label": "늘 쌓임 — 에이전트 실행마다 (다른 담당)"
+    },
+    {
+      "id": "p1",
+      "label": "매시 한 번 — ① 입력 파이프라인",
+      "tone": "blue"
+    },
+    {
+      "id": "selc",
+      "label": "SEL 공통",
+      "tone": "yellow"
+    },
+    {
+      "id": "infra",
+      "label": "사내 클라우드"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "rt",
+      "label": "Agent Runtime · Harness",
+      "sub": "Runtime · Registry 담당 · Harness · 오케스트레이터 담당",
+      "group": "obs"
+    },
+    {
+      "id": "ard",
+      "label": "관측 데이터 적재",
+      "sub": "ARD 팀",
+      "group": "obs",
+      "shape": "external"
+    },
+    {
+      "id": "px",
+      "label": "Phoenix",
+      "sub": "실행 기록",
+      "group": "obs",
+      "shape": "db"
+    },
+    {
+      "id": "sched",
+      "label": "스케줄러",
+      "sub": "매시 정각에 ①을 깨움\n데이터는 안 다룸",
+      "group": "p1"
+    },
+    {
+      "id": "adp",
+      "label": "Phoenix 어댑터",
+      "sub": "직전 1시간치를\nPhoenix에서 가져옴",
+      "group": "p1",
+      "emphasis": true
+    },
+    {
+      "id": "col",
+      "label": "전처리",
+      "sub": "eval 제외 · 문장 버리고 구조만",
+      "group": "p1",
+      "emphasis": true
+    },
+    {
+      "id": "ana",
+      "label": "분석",
+      "sub": "평소보다 실패 증가?",
+      "group": "p1",
+      "emphasis": true
+    },
+    {
+      "id": "pub",
+      "label": "발행",
+      "sub": "쿨다운 24시간",
+      "group": "p1",
+      "emphasis": true
+    },
+    {
+      "id": "store",
+      "label": "SEL 저장소",
+      "sub": "실행 기록 요약",
+      "group": "selc",
+      "shape": "db"
+    },
+    {
+      "id": "kafka",
+      "label": "Kafka",
+      "sub": "finding → ②",
+      "group": "infra",
+      "shape": "queue",
+      "emphasis": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "rt",
+      "to": "ard",
+      "label": "실행마다 OTel",
+      "emphasis": true
+    },
+    {
+      "from": "ard",
+      "to": "px",
+      "label": "적재",
+      "emphasis": true
+    },
+    {
+      "from": "px",
+      "to": "adp",
+      "label": "매시 한 번 가져감(pull)",
+      "emphasis": true
+    },
+    {
+      "from": "sched",
+      "to": "adp",
+      "label": "깨우기",
+      "dashed": true
+    },
+    {
+      "from": "adp",
+      "to": "col",
+      "emphasis": true
+    },
+    {
+      "from": "col",
+      "to": "ana",
+      "emphasis": true
+    },
+    {
+      "from": "col",
+      "to": "store",
+      "label": "저장"
+    },
+    {
+      "from": "ana",
+      "to": "pub",
+      "emphasis": true
+    },
+    {
+      "from": "pub",
+      "to": "kafka",
+      "label": "finding",
+      "emphasis": true
+    }
+  ],
+  "legend": [
+    {
+      "kind": "emphasis",
+      "label": "주 경로"
+    },
+    {
+      "kind": "external",
+      "label": "범위 밖 조직"
+    }
+  ]
+}

@@ -13,11 +13,20 @@ _CASES = None
 
 
 def cases() -> dict:
+    """사람이 만든 평가 케이스(필수 · 정책 포함) + 시험 문제 생성기가 만든 질문(runs/generated_cases.jsonl)."""
     global _CASES
     if _CASES is None:
         with (DATA / "eval" / "cases.jsonl").open(encoding="utf-8") as f:
             _CASES = {c["eval_case_id"]: c for c in map(json.loads, f)}
+        from .config import RUNS
+        gen = RUNS / "generated_cases.jsonl"
+        if gen.exists():
+            _CASES.update({c["eval_case_id"]: c for c in map(json.loads, gen.read_text(encoding="utf-8").splitlines()) if c})
     return _CASES
+
+
+def add_cases(rows: list[dict]) -> None:
+    cases().update({c["eval_case_id"]: c for c in rows})
 
 
 def run_case(case: dict, overrides: dict | None, *, arm: str, repeat: int, source="eval") -> dict:

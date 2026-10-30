@@ -404,7 +404,7 @@ def test_sel_governance_counter_resets_per_hypothesis(monkeypatch):
                                                       "field_path": "body", "hypothesis": "다음 가설"})
     monkeypatch.setattr(sel, "_validate_hypothesis", lambda h: h)
     monkeypatch.setattr(sel, "_freeze_set", lambda *a, **k: None)
-    case["body"]["finding"] = {"evidence": [], "target": {}}
+    case["body"]["finding"] = {"examples_meta": [], "asset_ref": None}
     sel._save(c, case)
     c.commit()
     assert sel.step(cid, log=lambda *_: None) == "TRIAGED"

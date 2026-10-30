@@ -9,7 +9,7 @@ from sel_lab import sel, tester, testset
 from sel_lab.testset import classify, finding_signature, matches, probe, scope_kinds, select, stratify
 
 TOOL = "asset://tool/fi/open-items-query"
-SIG = {"outcome_type": "tool_error", "tool": TOOL, "error_code": "ROW_LIMIT_EXCEEDED"}
+SIG = {"outcome_type": "arg_error", "tool": TOOL, "result_code": "ROW_LIMIT_EXCEEDED"}
 
 
 def run(passed, errors=(), status="ok", checks=None):
@@ -25,17 +25,17 @@ OTHER = run(False, [], checks={"correct": False})
 
 def test_finding_signature_per_signal():
     ev = [{"error": "ROW_LIMIT_EXCEEDED"}, {"error": "ROW_LIMIT_EXCEEDED"}, {"error": "VENDOR_NOT_FOUND"}]
-    assert finding_signature("tool_error", TOOL + "@1.0.0", ev) == SIG
-    assert finding_signature("arg_invalid", TOOL + "@1.0.0", [])["error_code"] == "ARG_INVALID"
-    assert finding_signature("budget_exceeded", "asset://agent/fi/assistant@1.0.1", []) == {"outcome_type": "budget_exceeded"}
+    assert finding_signature("tool_arg_error", TOOL + "@1.0.0", ev) == SIG
+    assert finding_signature("tool_arg_error", TOOL + "@1.0.0", [{"error": "ARG_INVALID"}])["result_code"] == "ARG_INVALID"
+    assert finding_signature("limit_exceeded", "asset://agent/fi/assistant@1.0.1", []) == {"outcome_type": "limit_exceeded"}
     assert finding_signature("eval_fail", "x", [{"failed_checks": ["policy"]}])["failed_checks"] == ["policy"]
-    assert finding_signature("negative_feedback", "asset://agent/fi/assistant@1.0.0", []) is None
+    assert finding_signature("repeat_question", "asset://agent/fi/assistant@1.0.0", []) is None
 
 
 def test_matches():
     assert matches(SIG, ROW) and not matches(SIG, OTHER) and not matches(SIG, run(True))
     assert not matches(SIG, run(False, [(TOOL, "VENDOR_NOT_FOUND")]))
-    assert matches({"outcome_type": "budget_exceeded"}, run(False, status="budget_exceeded"))
+    assert matches({"outcome_type": "limit_exceeded"}, run(False, status="budget_exceeded"))
     assert matches({"outcome_type": "eval_fail", "failed_checks": ["policy"]}, run(False, checks={"policy": False}))
     assert matches(None, OTHER)                                    # 서명 없음: 실패면 일치
 
@@ -111,7 +111,7 @@ def fake_runner(fail_kinds=(), sig_kinds=(), budget_kinds=()):
 
 
 def test_select_prefers_signature_matches():
-    es = select(_held(), target_ref="asset://skill/fi/open-items@1.4.3", finding={"signal": "tool_error", "signature": SIG},
+    es = select(_held(), target_ref="asset://skill/fi/open-items@1.4.3", finding={"pattern": "tool_arg_error", "signature": SIG},
                 kinds_map=sel.KINDS, usage={}, seed="t", runner=fake_runner(sig_kinds={"open_items_no_period"},
                                                                          fail_kinds={"open_items_annual"}), log=lambda *_: None)
     cs = tester.cases()
@@ -120,7 +120,7 @@ def test_select_prefers_signature_matches():
 
 
 def test_select_falls_back_to_repeat_failures_and_records_it():
-    es = select(_held(), target_ref="asset://skill/fi/open-items@1.4.3", finding={"signal": "tool_error", "signature": SIG},
+    es = select(_held(), target_ref="asset://skill/fi/open-items@1.4.3", finding={"pattern": "tool_arg_error", "signature": SIG},
                 kinds_map=sel.KINDS, usage={}, seed="t", runner=fake_runner(fail_kinds={"open_items_no_period"}),
                 log=lambda *_: None)
     assert es["target"] and es["_stats"]["rule"].startswith("repeat_failure(fallback")
@@ -128,7 +128,7 @@ def test_select_falls_back_to_repeat_failures_and_records_it():
 
 def test_select_fills_guard_from_out_of_scope_when_scope_all_fails():
     es = select(_held(), target_ref="asset://tool/fi/gl-balance-query@1.2.1",
-                finding={"signal": "arg_invalid", "signature": {"outcome_type": "arg_invalid", "tool": "asset://tool/fi/gl-balance-query", "error_code": "ARG_INVALID"}},
+                finding={"pattern": "tool_arg_error", "signature": {"outcome_type": "arg_error", "tool": "asset://tool/fi/gl-balance-query", "result_code": "ARG_INVALID"}},
                 kinds_map=sel.KINDS, usage={}, seed="t", runner=fake_runner(fail_kinds={"gl_balance"}), log=lambda *_: None)
     cs = tester.cases()
     assert len(es["guard"]) == 8 and all(cs[x]["kind"] != "gl_balance" for x in es["guard"])
@@ -144,11 +144,13 @@ def test_select_excludes_usage_capped_and_keeps_all_fixed():
     assert set(es["fixed"]) == {cid for cid, c in tester.cases().items() if c["fixed"]}
 
 
-def test_select_eval_fail_adds_failed_fixed_cases_to_target():
+def test_select_eval_fail_adds_failed_fixed_cases_to_target(monkeypatch):
     fx = sorted(cid for cid, c in tester.cases().items() if c["fixed"])[:2]
+    from sel_lab import analyzer
+    # 실패 사례는 finding에 실려 오지 않고 ②가 ①의 기록에서 읽는다 → 그 자리를 대신한다
+    monkeypatch.setattr(analyzer, "failing_runs", lambda f: [{"case_id": x} for x in fx])
     es = select(_held(), target_ref="asset://skill/fi/document-post@1.0.1",
-                finding={"signal": "eval_fail", "signature": {"outcome_type": "eval_fail", "failed_checks": ["policy"]},
-                         "evidence": [{"case_id": x} for x in fx]},
+                finding={"pattern": "eval_fail", "signature": {"outcome_type": "eval_fail", "failed_checks": ["policy"]}},
                 kinds_map=sel.KINDS, usage={}, seed="t", runner=fake_runner(), log=lambda *_: None)
     assert es["target"][:2] == fx and not set(fx) & set(es["fixed"])
 

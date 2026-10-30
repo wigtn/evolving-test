@@ -2,6 +2,12 @@
 
 작성 2026-10-27 · 참고 문서 (PRD 아님)
 
+> **상태 (확인 2026-10-30, 위키 · 기준 문서 2026-10-28 기준): 이력 예시.** 흐름의 논리(가설 → 시험 → 승인 → 반영 → 확인)는 참고로 남기되 아래는 낡았다.
+> - "운영 trace가 없을 수 있다(PRD Q7)"는 철회. 모든 에이전트가 우리 Runtime에서 돌아 운영 실행 기록이 다 있다. 원천은 Gateway 원장 · 세션 기록이 아니라 Phoenix API(① 입력 파이프라인이 finding을 만듦).
+> - 역할: Creator = 원인 가설 + 시험 문제 선정, Improver = 가설 하나당 후보 하나를 Registry candidate로 등록(②). Tester · Evaluator(LLM 판정자 쌍대 비교 + MDI 게이트)는 ③, 사람 승인 · Promoter · Verifier(7일 뒤 확인)는 ④. 위 G1–G4 게이트와 케이스 상태(TRIAGED · CANARY 등)는 제안이다.
+> - 기준 문서에 카나리는 없다. Promoter는 승인된 버전으로 Registry 릴리스 지정을 옮긴다(다음 요청부터 새 버전). 자산 상태는 draft → candidate → approved(사람만) → deprecated → retired, candidate → rejected(평가 미달 · 반려).
+> - 없던 자산을 새로 만드는 경우(R7 no_asset_match 예시)는 기준 문서에 명시가 없다. 기준 문서 ②의 예시는 기존 자산 수정(프롬프트 · 도구 설명 · 스킬 본문)이다.
+
 SEL 애플리케이션 설계 v0.1(2026-10-23)의 용어를 따른다. 업무 내용과 수치는 모두 가상이다. 예시 대부분은 `sel-lab/data/defects/catalog.yaml`의 결함(D01–D10)으로 재현할 수 있다.
 
 ## 공통 흐름

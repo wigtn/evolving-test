@@ -94,7 +94,7 @@ def traffic(batch: str, n: int, seed: int = 0, recon: int = 0, focus: dict | Non
 
 
 def golden(batch: str, k: int = 1):
-    """정기 골든셋: 고정 세트(SME 필수 사례, dev 풀)를 활성 버전으로 실행한다 (R6 입력)."""
+    """정기 골든셋: 고정 세트(SME 필수 사례, dev 풀)를 활성 버전으로 실행한다 (lab 전용 eval_fail 패턴의 입력)."""
     fixed = [c for c in tester.cases().values() if c["fixed"] and c["pool"] == "dev"]
     agent_ref = registry.active_ref(registry.DEFAULT_AGENT)
     for c in fixed:
@@ -129,11 +129,11 @@ def cmd_traffic(a):
 def _print_analysis(res):
     for f in res["findings"]:
         m = f["metrics"]
-        print(f"  FINDING {f['signal']:<18} {str(f['target']['asset_ref'] or f['target'].get('procedure')):<45} "
-              f"rate={m['rate']} base={m['baseline_rate']} support={m['support']} users={m['distinct_principals']}")
+        print(f"  FINDING {f['pattern']:<18} {str(f['asset_ref'] or (f['_lab'].get('new_asset') or {}).get('procedure')):<45} "
+              f"fail_rate={m['fail_rate']} base={m['baseline_fail_rate']} runs={m['runs']} affected={f['affected_requests']}")
     for f in res["below_threshold"]:
         m = f["metrics"]
-        print(f"  (임계 미달) {f['signal']:<14} {str(f['target']['asset_ref']):<45} rate={m['rate']} support={m['support']}")
+        print(f"  (임계 미달) {f['pattern']:<14} {str(f['asset_ref']):<45} fail_rate={m['fail_rate']} runs={m['runs']}")
     for p in res["platform_signals"]:
         print(f"  PLATFORM {p}")
 

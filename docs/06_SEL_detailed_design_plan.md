@@ -3,6 +3,12 @@
 2026-10-28 · **참고안** · PRD v0.11 기준 · 논의용
 
 > **v0.11 정정 (먼저 읽을 것).** SEL 구조 · 역할 · 담당 · 일정의 기준은 모듈 설계 기준 문서(내부) 11장이다. 이 문서는 SEL 전체를 놓고 쓴 참고안이며, 스케줄러 · 분석 규칙(2장)은 ① 입력 파이프라인, 상태머신 · Verifier · 롤백은 ④ 반영과 SEL 오케스트레이터, 게이트는 ③ 평가에 주는 제안이다. 우리 담당 ② 자산 생성은 `docs/07_SEL_2_asset_generation.md`가 본체다. 아래 본문의 "Q7 = 공용 자산만" 서술(운영 trace 없음, 게이트 원장 · 세션 기록만, 대리 에이전트, 카나리 전 PARKED, R4 · R8 운영 불가)은 철회됐다. 모든 에이전트가 우리 Runtime에서 돌고 SEL 입력은 Phoenix API다(PRD v0.11 0장 정정 표).
+>
+> **추가 정정 (확인 2026-10-30, 위키 · 기준 문서 기준).** 다음도 본문보다 기준선이 우선한다.
+> - SEL 오케스트레이터는 Runtime 위 그래프이고 **상태를 갖지 않는다(체크포인트 없음).** 3장 "SEL 서비스"(상태머신 · 잠금 · outbox)를 어디에 둘지는 ④ · PM과 협의할 제안이다. 브로커는 Kafka(`erp.asset.release.v1`, Registry outbox)로 정해졌다(토픽 생성 권한은 사내 클라우드 협의 대상, 위키 미결).
+> - Improver는 "proposed 등록 · 상신"이 아니라 Registry에 **candidate** 등록. 자산 상태는 draft → candidate → approved(사람만) → deprecated → retired, candidate → rejected. "proposed · active"는 없다. 버전은 "패치"가 아니라 행동이 바뀌면 minor.
+> - 카나리 · PARKED(자산 저장 규격 v1.1)는 기준 문서에 없다. Promoter는 릴리스 지정을 옮기고, Verifier는 7일 뒤 같은 패턴 감소를 본다.
+> - 원천 어댑터의 게이트 원장 · 세션 기록 경로, `eval-job/v1`(Q4), 트레이싱 팀 수집 경로는 낡음. 원천은 Phoenix API(`phoenix.client.Client().spans.get_spans_dataframe`), 관측 적재는 ARD 팀. Tester는 `run_mode: eval`(쓰기 Dry-Run, 모델 고정)로 ERP 사용이 적은 시간대에 돈다(③).
 
 PRD v0.8에서 흐름을 동결했고, v0.9에서 Q7을 "공용 자산만"으로 정했다. Business·Personal 업무는 Runtime 밖 프론티어 도구(OpenAI Dots)가 맡고, Runtime에는 SEL과 평가 샌드박스만 있다. 이 문서는 그 흐름을 지금 아키텍처(Agent Runtime VM 하나 안에 스케줄러, SEL 오케스트레이터, 평가 샌드박스, Admin UI)에 어떻게 올릴지 정리한다. 내용은 세 가지다.
 

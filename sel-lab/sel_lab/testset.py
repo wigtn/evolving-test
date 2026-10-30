@@ -1,18 +1,22 @@
-"""W9 · 시험 문제 선정 (docs/10 W9, docs/11 2장).
+"""W9 · ② Creator 단계의 하네스: 생성한 시험 질문을 지금 버전으로 돌려 거르고 잠근다 (docs/16 6장).
 
-시험 문제는 LLM이 만들거나 고르지 않는다. 이미 있는 입력에서 코드가 고르고 고정한다.
+질문은 testgen이 finding만 보고 새로 만든다. 무엇을 남길지는 LLM이 아니라 탐침 실행 결과와 이 코드가 정한다.
 
-0 노출 원장 · 사용 횟수 상한을 넘은 입력 제외 (split_golden이 노출 원장을, 여기서 사용 상한을 본다)
-1 범위: 가설의 대상 자산을 쓰는 업무의 입력. 표본 상한 N
+1 재료: testgen이 만든 질문(target_ref를 주면 그 자산을 쓰는 업무로 좁힌다. 지금 루프는 target_ref 없이 부른다). 표본 상한 N
 2 기준 실패 탐침: 현재 버전으로 2회. 2회 중 1회만 실패하면 3회째
-  - 과거 실패: 실패 서명이 finding과 같은 실패가 2회 이상 (서명 없는 신호는 실패 2회 이상)
+  - 목표(past_failure): 실패 서명이 finding과 같은 실패가 2회 이상 (서명 없는 신호는 실패 2회 이상)
   - 정상: 2회 모두 통과
   - 나머지(경계에서 못 넘음, 서명 다른 실패)는 제외
-3 필수 · 정책(고정) 케이스는 매번 전부
-4 정상 문제는 업무 유형별로 고르게(층화)
-5 고정: 세트 ID · frozen_at · 항목. 이후 바꿀 수 없다. 판정 전 세트의 항목이 노출되면 무효로 하고 다시 고정한다
+3 필수 · 정책(고정) 케이스는 매번 전부 (사람이 만든 고정 세트)
+4 정상 문제는 업무 유형별로 고르게(층화). 범위 안에서 모자라면 범위 밖 업무에서 채운다
+5 고정: 세트 ID · frozen_at · 항목. 이후 바꿀 수 없다
 
-탐침 결과는 고르는 데만 쓰고 판정은 ③(lab: tester.paired_run)이 기존 · 후보를 새로 짝 실행한다.
+탐침 결과는 거르는 데만 쓰고 판정은 ③(lab: tester.paired_run)이 기존 · 후보를 새로 짝 실행한다.
+
+예전 문제은행 방식의 코드가 남아 있다(정리 대상, README "PRD와 다른 점"):
+- 서명 일치가 MIN_SIG_MATCH 미만이면 반복 실패로 대신 채우고 rule에 남긴다. 설계는 insufficient_set으로 끝낸다.
+- 사용 횟수 상한(USAGE_CAP · case_usage)과 노출 시 세트 무효화(invalidate_exposed). 생성 질문은 매번 새 ID라 상한에 걸리지 않고,
+  루프는 노출 기록(sel.expose)을 부르지 않는다. 노출 원장은 GEPA를 켤 때만 필요하다.
 """
 from __future__ import annotations
 
@@ -25,7 +29,7 @@ from datetime import datetime, timezone
 from . import registry, tester
 
 USAGE_CAP = 50
-MIN_SIG_MATCH = 2          # 서명 일치 과거 실패가 이보다 적으면 같은 범위의 반복 실패로 대체한다
+MIN_SIG_MATCH = 2          # 서명 일치 실패가 이보다 적으면 반복 실패로 대체한다(예전 동작. 설계는 insufficient_set)
 N_PROBE = 200
 K_PROBE = 2
 
@@ -35,17 +39,15 @@ K_PROBE = 2
 def finding_signature(signal: str, target: str, evidence: list[dict]) -> dict | None:
     """①이 finding에 붙이는 서명 (docs/09 C1). 서명을 정할 수 없는 신호는 None."""
     base = registry.base_of(target) if target else None
-    if signal == "tool_error":
+    if signal == "tool_arg_error":                # 도구가 돌려준 업무 오류 · 형식 오류 (결과 코드로 구분)
         codes = Counter(e.get("error") for e in evidence if e.get("error"))
-        return {"outcome_type": "tool_error", "tool": base, "error_code": codes.most_common(1)[0][0]} if codes else None
-    if signal == "arg_invalid":
-        return {"outcome_type": "arg_invalid", "tool": base, "error_code": "ARG_INVALID"}
-    if signal == "budget_exceeded":
-        return {"outcome_type": "budget_exceeded"}
+        return {"outcome_type": "arg_error", "tool": base, "result_code": codes.most_common(1)[0][0]} if codes else None
+    if signal == "limit_exceeded":
+        return {"outcome_type": "limit_exceeded"}
     if signal == "eval_fail":
         checks = sorted({c for e in evidence for c in e.get("failed_checks", [])})
         return {"outcome_type": "eval_fail", "failed_checks": checks} if checks else None
-    return None                                   # negative_feedback 등: 서명 없음
+    return None                                   # repeat_question 등: 서명 없음
 
 
 def matches(sig: dict | None, run: dict) -> bool:
@@ -55,9 +57,9 @@ def matches(sig: dict | None, run: dict) -> bool:
     if sig is None:
         return True
     t = sig["outcome_type"]
-    if t in ("tool_error", "arg_invalid"):
-        return any(e["tool"] == sig["tool"] and e["error"] == sig["error_code"] for e in run.get("errors", []))
-    if t == "budget_exceeded":
+    if t == "arg_error":
+        return any(e["tool"] == sig["tool"] and e["error"] == sig["result_code"] for e in run.get("errors", []))
+    if t == "limit_exceeded":
         return run.get("status") == "budget_exceeded"
     if t == "eval_fail":
         return bool({k for k, v in run.get("checks", {}).items() if v is False} & set(sig["failed_checks"]))
@@ -140,13 +142,15 @@ def select(held: set[str], *, target_ref: str | None, finding: dict | None, kind
     rule = "signature" if sig else "repeat_failure(no signature)"
     past = cls["past_failure"]
     if sig is not None and len(past) < MIN_SIG_MATCH:
-        # 같은 결함이 입력에 따라 다르게 드러난다(운영: 대량 데이터에서 ROW_LIMIT, 평가 사례: 기간 범위 검사 실패).
-        # 서명 일치가 모자라면 같은 범위에서 반복 실패한 입력으로 채우고, 그 사실을 남긴다(희석 위험).
+        # 예전 문제은행 방식에서 생긴 대체 규칙(D01: ROW_LIMIT 재현 사례가 전부 노출 원장으로 빠져 일치 0건).
+        # 설계는 이 경우 insufficient_set으로 끝낸다(docs/16 6장). 코드는 아직 반복 실패한 질문으로 채우고
+        # 그 사실을 rule에 남긴다(희석 위험). 정리 대상.
         past = past + cls["repeat_failure"]
         rule = "repeat_failure(fallback: signature matched %d)" % len(cls["past_failure"])
     target = _order(seed, "target", past)[:n_target]
-    if finding and finding.get("signal") == "eval_fail":       # R6: 실패한 고정 사례도 목표 (원문은 Creator에 안 갔다)
-        target = sorted({e["case_id"] for e in finding.get("evidence", []) if e.get("case_id")}) + target
+    if finding and finding.get("pattern") == "eval_fail":       # lab 전용 eval_fail: 실패한 고정 사례도 목표 (질문 문장은 Creator에 안 갔다)
+        from .analyzer import failing_runs
+        target = sorted({e["case_id"] for e in failing_runs(finding) if e.get("case_id")}) + target
     guard = stratify(cls["normal"], cases, n_guard, seed)
     out_normal = []
     if len(guard) < n_guard:
@@ -194,7 +198,8 @@ def status(conn, sid: str) -> str:
 
 
 def invalidate_exposed(conn, hashes: set[str]) -> list[str]:
-    """노출 기록 시점에 검사: 판정 전(frozen) 세트에 노출된 입력이 있으면 무효로 한다."""
+    """노출 기록 시점에 검사: 판정 전(frozen) 세트에 노출된 입력이 있으면 무효로 한다.
+    예전 노출 원장의 잔재다. 루프는 sel.expose를 부르지 않아 지금은 테스트에서만 쓰인다."""
     hit = []
     for sid, body in conn.execute("select id, items from testset where status='frozen'").fetchall():
         if any(it["hash"] in hashes for it in json.loads(body)):

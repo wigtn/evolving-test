@@ -2,6 +2,12 @@
 
 Oct 26, 2026 · @WIGTN · 상태: 논의용 초안 v3.1 (v3.2 트레이싱 규칙 + Collector 구성안 기준)
 
+> **상태 (확인 2026-10-30, 위키 · 기준 문서 2026-10-28 기준): 이력 문서. 트레이싱은 우리 범위가 아니다.** 이 문서의 Collector 중심 구조(정본 Kafka → ARD / 사본 Phoenix 분기, "SEL은 정본만 읽는다", 임시 · 정본 모드 전환)는 현재 기준선이 아니다.
+> - 현재: Runtime이 OTel로 **Phoenix에 직접**(OTLP HTTP · gRPC) 보낸다. SEL ① 입력 파이프라인은 **Phoenix API**(`phoenix.client.Client().spans.get_spans_dataframe`, 구형 `px.Client` 아님)를 직접 읽는다. **관측 데이터 적재는 ARD 팀**이고, 높은 등급 본문 제거는 ① 전처리가 한다(이 문서의 Collector 사본 갈래 제거 · L1 마스킹 대신). Phoenix 운영 측 협의(접근 권한 · 보존 기간 · `erp.*` 수용)는 2026-11.
+> - Deep Tracer · DeepWork는 쓰지 않는다(확정). Dots 도입은 "2027년 하반기"가 아니라 2027.7 전후이며 우리 에이전트 실행과 무관하다(모든 에이전트가 우리 Runtime에서 돈다). Dots 행동 로그 경로 · `dots(예약)`은 필요 없다.
+> - span 속성 정본은 연동 규약 `common/span-attributes.md`(기준선 필수: `erp.request_id` · `erp.asset.refs` · `erp.outcome.type`). 이 문서 5장의 `erp.*` 목록은 제안 이력이다.
+> - 이 문서의 P0–P3은 트레이싱 작업 단계이며 프로젝트 Phase(P0 정렬 ~ P4 안정화)나 연동 규약 P1–P4와 관계없다. Agent Protocol v0(2026.11) · v1(2027.1) 서술은 현재 연동 규약 태그(v0 2026-11 중순 · v1 2026-12 말 · v1.1 2027-03)로 읽는다.
+
 ## 1. 개요
 
 v3 Business·Personal Runtime의 실행 기록을 정본(Kafka → ARD)과 사본(Phoenix)으로 나눠 수집한다. 보안 2등급 이상 내용은 사본에 들어가지 않게 한다. v3.2 Collector 규칙대로 span은 남기고 내용만 지운다. 정본 경로의 준비 상태와 보안 등급 체계의 세부는 아직 확정되지 않았다. 그래서 확정되지 않은 사항은 설정 스위치로 빼고, 가장 보수적인 기본값으로 초기 작업을 시작한다 (3장).

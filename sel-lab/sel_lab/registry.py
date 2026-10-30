@@ -10,7 +10,10 @@
 - skill · prompt (Markdown): front matter{kind, metadata{ref, grade}, description, allowed_tools, role} + 본문
   (skill · prompt 형식은 Protocol P2 Asset에서 확정되면 이 파서만 고친다)
 
-상태: draft → candidate → approved → active → retired.
+상태(기준 문서 8장 그림 4): draft → candidate → approved, candidate → rejected(평가 미달 · 반려),
+릴리스 지정에서 밀려난 approved → deprecated(참조 0건이면 retired. lab은 retired를 쓰지 않음).
+"지금 쓰는 버전"은 상태가 아니라 state.json의 active(릴리스 지정 포인터)가 정한다.
+롤백하면 deprecated였던 이전 버전이 다시 approved로 표시된다. 그림 4에 없는 전이로, lab의 단순화다.
 """
 from __future__ import annotations
 
@@ -154,9 +157,9 @@ def set_active(ref: str, reason: str, actor: str) -> str | None:
     prev = st["active"].get(base)
     st["active"][base] = ver
     st["history"].append({"base": base, "from": prev, "to": ver, "reason": reason, "actor": actor})
-    st["lifecycle"][ref] = "active"
-    if prev:
-        st["lifecycle"][f"{base}@{prev}"] = "retired"
+    st["lifecycle"][ref] = "approved"
+    if prev and prev != ver:
+        st["lifecycle"][f"{base}@{prev}"] = "deprecated"
     write_state(st)
     return prev
 

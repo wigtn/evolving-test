@@ -1,6 +1,6 @@
 {
   "title": "SEL ② 자산 생성 · Creator와 Improver",
-  "subtitle": "LLM이 하는 일은 원인 가설과 후보 작성 둘뿐, 나머지는 결정적 코드 · 빨간 상자 = 보안 단계 · 굵은 선 = 정상 경로",
+  "subtitle": "LLM이 하는 일은 원인 가설과 편집 명령 작성 둘뿐, 나머지는 결정적 코드 · 빨간 상자 = 보안 단계 · 굵은 선 = 정상 경로",
   "direction": "DOWN",
   "groups": [
     {
@@ -88,15 +88,15 @@
     },
     {
       "id": "i7",
-      "label": "7 후보 작성 (LLM)",
-      "sub": "증분 패치 · 변경 종류 하나 · 30줄 이내",
+      "label": "7 편집 명령 작성 (LLM)",
+      "sub": "증분 패치 · 변경 종류 하나 · 30줄 이내 · 파일 아님",
       "group": "im",
       "emphasis": true
     },
     {
       "id": "i8",
-      "label": "8 거버넌스 검사 (코드)",
-      "sub": "수정 범위 · 유입 · 누출 · 등급 · 형식",
+      "label": "8 적용 · 거버넌스 (코드)",
+      "sub": "원본에 적용 → 후보 파일 · 범위 · 유입 · 누출 · 등급",
       "group": "im",
       "shape": "decision",
       "tone": "red",
@@ -104,8 +104,8 @@
     },
     {
       "id": "i9",
-      "label": "9 Registry 등록",
-      "sub": "draft → candidate · 생성 근거 첨부",
+      "label": "9 후보 등록",
+      "sub": "draft → candidate (Registry 스키마 · 린트) · 생성 근거 첨부",
       "group": "im",
       "emphasis": true
     },
@@ -119,7 +119,7 @@
     {
       "id": "t3",
       "label": "③ 평가로",
-      "sub": "후보 ref + 기준 ref + 고정된 시험 문제\n결과는 통과 여부만 돌려받음",
+      "sub": "후보 ref + 기준 ref + 고정된 시험 문제\n결과는 통과 여부만 돌려받음 (제안)",
       "group": "out"
     }
   ],
@@ -189,7 +189,7 @@
     {
       "from": "i8",
       "to": "i7",
-      "label": "실패 (2회까지)",
+      "label": "실패 (재작성 2회까지)",
       "back": true
     },
     {

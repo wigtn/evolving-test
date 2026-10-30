@@ -43,7 +43,7 @@ spec:
         type: string
         description: HITL 승인 토큰. 본실행에 필요
   side_effect: write
-  required_capability: fi.post
+  required_capability: fi.write
   dry_run: supported
   idempotency: required
   timeout_s: 20

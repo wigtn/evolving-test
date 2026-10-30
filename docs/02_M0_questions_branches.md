@@ -1,6 +1,13 @@
 # M0 미결 질문 4개: 답에 따른 설계 분기
 
-작성 2026-10-27 · v0.3 (플랫폼 설계 방향 문서 대조로 Q5–Q7 추가) · 대상: [SEL PRD v0.7](01_PRD_SEL_v0.10.md)
+작성 2026-10-27 · v0.3 (플랫폼 설계 방향 문서 대조로 Q5–Q7 추가) · 대상: [SEL PRD v0.3](01_PRD_SEL_v0.3.md)
+
+> **상태 (확인 2026-10-30, 위키 · 기준 문서 2026-10-28 기준): 이력 문서.** 대상 PRD v0.3은 `docs/prd/01_PRD_SEL_v0.11.md`(0장 정정 표 우선)로 대체됐다. M0–M4 단계는 프로젝트 Phase(P0 정렬 ~ P4 안정화, SEL은 P3 개선 2027.2~5)로 읽는다.
+> - **Q6 닫힘**: SEL 입력은 Phoenix API(`phoenix.client.Client().spans.get_spans_dataframe`)를 ① 입력 파이프라인이 직접 읽는다. "Phoenix API는 Deep Tracer가 읽음"은 낡음(Deep Tracer · DeepWork 미사용 확정). 관측 적재는 ARD 팀.
+> - **Q7 닫힘**: 모든 에이전트가 우리 Runtime · Harness에서 돈다(업무 에이전트는 업무 담당 조직이 만듦). "공용 자산만" · 프론티어 도구 전제는 철회.
+> - **Q4**: v3 SEL 섹션 · `eval-job/v1` 대신 기준 문서 11장 SEL ①~④가 기준. 평가(Tester · Evaluator · MDI 게이트)는 ③ 담당이고 MDI 기준은 PM.
+> - **Q2 · Q5 · Q1**: Tester는 `run_mode: eval`(Harness가 쓰기 도구를 Dry-Run, 모델 고정)로 우리 Runtime에서 돈다. 별도 "Aegra 평가 샌드박스" 구축이나 합성 SAP mock은 기준선에 없다. 평가 계정 · 실데이터 범위는 여전히 미확인.
+> - **Q3**: Registry가 불변 버전과 릴리스 이력(현재 · 직전 · 사유)을 둔다(위키 Registry). 과거 실행 기록 범위는 Phoenix 보존 기간에 달린다(Phoenix 운영 협의 2026-11).
 
 네 질문 모두 아직 답이 없다. 각 질문마다 나올 수 있는 답을 경우로 나누고, 경우별로 PRD의 어느 부분(A·B·C·L, M0–M4, 지표, 결정 D1–D10)이 어떻게 바뀌는지 적는다. 답이 오기 전에 작업을 진행하려면 기준이 필요하므로 질문마다 "답 전 기본 가정"을 둔다.
 

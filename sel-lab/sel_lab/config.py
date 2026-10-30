@@ -45,7 +45,7 @@ def judge_enabled() -> bool:
 
 
 def chat_model(role: str):
-    """role: agent | creator | improver | judge. 사내 OpenAI 호환 Gateway로만 호출한다."""
+    """role: agent | creator | testgen | improver | judge. 사내 OpenAI 호환 Gateway로만 호출한다."""
     if offline():
         return None
     from langchain_openai import ChatOpenAI

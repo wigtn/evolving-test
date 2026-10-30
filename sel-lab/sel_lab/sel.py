@@ -1,7 +1,7 @@
 """SEL 서비스: 개선 케이스 상태머신과 Creator·Improver·Tester·Evaluator·Gate·Promoter·Verifier.
 
 케이스 = 자산 하나 · 패턴 하나 · 가설 하나. 자산당 활성 케이스는 하나. 상태 전이는 case_event에 추가 기록한다.
-저장소는 로컬 SQLite (운영에서는 PostgreSQL sel 스키마, Database Connector 경유).
+저장소는 로컬 SQLite (운영에서는 PostgreSQL sel 스키마를 SEL이 직접 읽고 쓴다. DBC는 업무 데이터를 건드릴 때만).
 """
 from __future__ import annotations
 
@@ -73,7 +73,9 @@ def _hash(text: str) -> str:
 
 
 def expose(agent: str, texts, source: str) -> None:
-    """노출 원장: Creator 컨텍스트에 들어간 입력을 기록한다. 같은 입력의 골든셋 사례는 held-out이 될 수 없다."""
+    """노출 원장: Creator 컨텍스트에 들어간 입력을 기록한다. 같은 입력의 골든셋 사례는 held-out이 될 수 없다.
+    예전 문제은행 방식의 잔재다. 지금 설계는 시험 문제를 finding마다 새로 만들고 Creator는 사용자 질문을 보지 않아
+    노출 원장이 없다(GEPA를 켤 때만 필요). 루프는 이 함수를 부르지 않는다(테스트에서만 쓰임)."""
     c = db()
     hashes = set()
     for x in texts:
@@ -107,7 +109,7 @@ def ingest(findings: list[dict]) -> list[str]:
     for f in findings:
         if f["dedupe_key"] in sup:
             continue
-        target = f["target"]["asset_ref"] or f"new/{f['target'].get('procedure')}"
+        target = f["asset_ref"] or f"new/{((f.get('_lab') or {}).get('new_asset') or {}).get('procedure')}"
         base = target.split("@")[0]
         live = c.execute("select case_id from improvement_case where (dedupe_key=? or target_asset=?) and state not in (%s)"
                          % ",".join("?" * len(TERMINAL)), (f["dedupe_key"], base, *TERMINAL)).fetchone()
@@ -121,7 +123,7 @@ def ingest(findings: list[dict]) -> list[str]:
         body = {"finding": f, "history": []}
         c.execute("insert into improvement_case values(?,?,?,?,?,?,?,?,?,?)",
                   (cid, base, target.split("@")[1] if "@" in target else None, f["dedupe_key"], "OPEN", 0,
-                   f["fidelity"], f["signal"], json.dumps(body, ensure_ascii=False), _now()))
+                   f["_lab"]["fidelity"], f["pattern"], json.dumps(body, ensure_ascii=False), _now()))
         c.execute("insert into finding values(?,?,?,?,?)", (f["finding_id"], f["dedupe_key"], cid, json.dumps(f, ensure_ascii=False), _now()))
         c.execute("insert into case_event values(?,?,?,?,?,?,?)", (uuid.uuid4().hex, cid, None, "OPEN", "analyzer", "{}", _now()))
         opened.append(cid)
@@ -167,21 +169,28 @@ def _ask(role: str, system: str, user: str, retries: int = 1) -> dict:
 
 
 def _evidence(finding, limit=5):
+    """증거는 finding에 실려 오지 않는다. ①의 정규화 기록(sel_run)을 ②가 직접 읽는다(lab: analyzer.failing_runs)."""
     from . import tracing
-    ids = {e["run_id"] for e in finding.get("evidence", [])}
-    if finding["signal"] == "eval_fail":                   # R6: 고정 사례 원문은 Creator에 넘기지 않는다
+    from .analyzer import failing_runs
+    fails = failing_runs(finding)
+    ids = {e["run_id"] for e in fails}
+    if finding["pattern"] == "eval_fail":                   # lab 전용 eval_fail: 고정 사례의 질문 문장은 Creator에 넘기지 않는다
         return [{"case_id": e["case_id"], "case_kind": e["case_id"].split("/")[0],
-                 "failed_checks": e.get("failed_checks", [])} for e in finding.get("evidence", [])[:limit]]
+                 "failed_checks": e.get("failed_checks", [])} for e in fails[:limit]]
     runs = [r for r in tracing.read("runs_prod") + tracing.read("runs_eval") if r["run_id"] in ids][:limit]
-    # 증거 구획을 거쳐 Creator 컨텍스트에 들어가는 입력은 노출 원장에 올린다 (held-out에서 영구 제외)
-    expose(registry.DEFAULT_AGENT, [r["user_message"] for r in runs], "creator_evidence")
+    # 사용자 질문 · 도구 인자 값 · 답변은 넘기지 않고 구조만 넘긴다
+    # (① sel_run이 남기는 것과 같은 범위: 도구 이름 · 인자 이름 · 결과 코드 · 결과 건수 · 세션 이벤트 종류)
+    events = {e["run_id"]: [x["type"] for x in e.get("events", [])] for e in fails}
     out = []
     for r in runs:
-        out.append({"user_message": r["user_message"], "status": r["status"], "final_answer": r["final_answer"][:400],
-                    "tool_calls": [{"name": c["name"], "args": c["args"],
-                                    "result": (c.get("result") or {}).get("error") if isinstance(c.get("result"), dict) else None}
-                                   for c in r["tool_calls"]][:12],
-                    "case_kind": (r.get("case_id") or "").split("/")[0] or None})
+        calls = []
+        for c in r["tool_calls"][:12]:
+            res = c.get("result") if isinstance(c.get("result"), dict) else {}
+            calls.append({"name": c["name"], "arg_names": sorted(c["args"]),
+                          "result_code": res.get("error") or "OK",
+                          "rows": len(res["rows"]) if isinstance(res.get("rows"), list) else None})
+        out.append({"run_id": r["run_id"], "status": r["status"], "turns": r.get("turns"),
+                    "tool_calls": calls, "session_events": events.get(r["run_id"], [])})
     return out
 
 
@@ -219,39 +228,48 @@ def creator(case) -> dict:
     prev = case["body"]["history"][-1] if case["body"]["history"] else None
     if offline():
         return _creator_offline(f, ev, prev)
-    user = json.dumps({"finding": {k: f[k] for k in ("signal", "target", "hypothesis_class", "metrics")}, "evidence": ev,
+    user = json.dumps({"finding": {k: f[k] for k in ("pattern", "asset_ref", "hint", "metrics")}, "evidence": ev,
                        "assets": _assets_view(), "case_kinds": {k: v[1] for k, v in KINDS.items()},
                        "previous_iteration": prev}, ensure_ascii=False)
     return _ask("creator", CREATOR_SYS, user)
 
 
-def infer_kind(msg: str) -> str:
-    """오프라인 대역용: 요청 문장만 보고 업무 유형을 추정한다 (정답 라벨을 보지 않는다)."""
-    if "전표 올려" in msg:
+def kind_from_structure(e: dict) -> str | None:
+    """오프라인 대역용: 실행의 구조(어떤 도구를 어떤 인자 이름으로, 결과가 몇 건)만 보고 업무 유형을 추정한다.
+    사용자 질문은 보지 않는다."""
+    if e.get("case_kind"):                                   # 골든셋 사례는 평가 케이스 라벨이 있다
+        return e["case_kind"]
+    calls = e.get("tool_calls", [])
+    names = [c["name"] for c in calls]
+    if "fi_document_post" in names:
         return "document_post"
-    if "잔액" in msg:
+    if "fi_gl_balance_query" in names:
         return "gl_balance"
-    if len(re.findall(r"가상거래처-\d{4}", msg)) >= 2:
+    if names.count("fi_vendor_search") >= 2:
         return "multi_vendor"
-    if any(w in msg for w in ("누적", "연간", "전체")):
-        return "open_items_annual"
-    if not re.search(r"\d{1,2}월", msg):
+    if any(c["name"] == "fi_vendor_search" and (c.get("rows") or 0) >= 2 for c in calls):
+        return "open_items_ambiguous"
+    if any(c["name"] == "fi_open_items_query" and "period_from" not in c["arg_names"] for c in calls):
         return "open_items_no_period"
-    return "open_items"
+    if "fi_open_items_query" in names:
+        return "open_items"
+    return None
 
 
 def _creator_offline(f, ev, prev):
-    """LLM 없이 배관을 검증하는 규칙 대역. 증거 실행의 요청 문장과 사용자 발화로 대상을 고른다 (정답지는 보지 않는다)."""
-    sig = f["signal"]
-    kinds = sorted({e["case_kind"] or infer_kind(e["user_message"]) for e in ev})
-    tgt = f["target"]["asset_ref"]
+    """LLM 없이 배관을 검증하는 규칙 대역. 증거 실행의 구조(도구 · 인자 이름 · 결과 건수)와 세션 이벤트 종류로
+    대상을 고른다 (사용자 질문 · 정답지는 보지 않는다)."""
+    sig = f["pattern"]
+    code = (f.get("signature") or {}).get("result_code")
+    kinds = sorted({k for k in (kind_from_structure(e) for e in ev) if k})
+    tgt = f["asset_ref"]
     if sig == "no_asset_match":
         return {"decision": "dismiss", "reason": "offline 모드는 new_asset을 만들지 않는다"}
-    if sig == "arg_invalid":
+    if sig == "tool_arg_error" and code == "ARG_INVALID":      # 형식 위반 → 도구 설명
         return {"decision": "proceed", "target_asset_ref": tgt, "change_type": "metadata", "field_path": "spec.description",
                 "hypothesis": "도구 설명에 인자 형식이 없어 잘못된 형식으로 호출한다", "confidence": 0.6,
                 "target_kinds": kinds or ["gl_balance"], "guard_kinds": []}
-    if sig == "tool_error":
+    if sig == "tool_arg_error":                                # 업무 오류(ROW_LIMIT 등) → 절차(SKILL)
         base = tgt.split("@")[0]
         skill = next(s for s in registry.resolve_agent()["skills"] if any(t.startswith(base) for t in s.meta.get("allowed_tools", [])))
         guard = [k for k, (a, _) in KINDS.items() if a == skill.base and k not in kinds][:2]
@@ -266,14 +284,16 @@ def _creator_offline(f, ev, prev):
         return {"decision": "proceed", "target_asset_ref": a.ref, "change_type": "instruction", "field_path": "body",
                 "hypothesis": "고정 세트 실패 유형의 SKILL 절차에 필수 단계가 빠졌다", "confidence": 0.5,
                 "target_kinds": kinds, "guard_kinds": []}
-    if sig == "budget_exceeded":
+    if sig == "limit_exceeded":
         return {"decision": "proceed", "target_asset_ref": tgt, "change_type": "composition", "field_path": "spec.params.max_turns",
                 "hypothesis": "턴 상한이 다단계 업무에 부족하다", "confidence": 0.6, "target_kinds": kinds or ["multi_vendor"], "guard_kinds": []}
-    # negative_feedback: 세션 이벤트로 대상 결정
-    evs = [x for e in f.get("evidence", []) for x in e.get("events", [])]
-    fmt = sum(1 for x in evs if x["type"] == "correction")
+    # repeat_question: 세션 이벤트로 대상 결정
+    # 이벤트 종류(재요청 · 정정)와 실행 구조만 본다. 발화 내용은 보지 않는다
+    evs = [t for e in ev for t in e.get("session_events", [])]
+    fmt = sum(1 for t in evs if t == "correction")
     ev_kinds = kinds
-    if sum("지점" in x.get("utterance", "") for x in evs) * 2 >= len(evs):
+    ambiguous = sum(1 for e in ev if kind_from_structure(e) == "open_items_ambiguous")
+    if ev and ambiguous * 2 >= len(ev):           # 거래처 검색이 2건 이상인데 묻지 않고 조회한 실행이 대부분
         s = registry.resolve_agent()["skills"][0]
         return {"decision": "proceed", "target_asset_ref": s.ref, "change_type": "instruction", "field_path": "body",
                 "hypothesis": "이름이 겹치는 거래처를 묻지 않고 하나를 골라 재요청이 생긴다", "confidence": 0.5,
@@ -318,7 +338,8 @@ DEV_PER_KIND = 2   # dev 쪽 비대칭 분할: 업무 유형당 소량만 (PRD: 
 
 
 def split_golden(seed: str, agent: str = registry.DEFAULT_AGENT) -> set[str]:
-    """held-out = 노출 원장 밖의 골든셋 사례 중 dev 소량을 뺀 나머지.
+    """예전 문제은행 방식의 잔재(루프는 부르지 않고 테스트에서만 쓴다). 지금은 시험 문제를 testgen이 새로 만든다.
+    held-out = 노출 원장 밖의 골든셋 사례 중 dev 소량을 뺀 나머지.
     Creator 컨텍스트에 한 번이라도 들어간 입력의 사례는 시드와 무관하게 held-out에 들어오지 않는다.
     lab 데이터에는 template_id가 없어 사례 하나를 템플릿 하나로 본다."""
     import zlib
@@ -332,9 +353,13 @@ def split_golden(seed: str, agent: str = registry.DEFAULT_AGENT) -> set[str]:
 
 def build_eval_set(finding: dict | None, target_ref: str | None = None, n_target=12, n_guard=8, n_probe=200,
                    seed: str = "default", log=print, runner=None) -> dict:
-    """시험 문제 선정 (W9, sel_lab/testset.py). 코드가 고른다. Creator의 가설은 대상 자산(범위)만 정하고 문제를 고르지 않는다."""
-    from . import testset
-    es = testset.select(split_golden(seed), target_ref=target_ref, finding=finding, kinds_map=KINDS,
+    """시험 문제 생성 + 하네스 (docs/16 6장).
+    생성기(testgen)는 finding만 보고 질문을 새로 만든다. Creator의 가설 · 후보는 보지 않는다.
+    하네스(testset.select)는 그 질문을 지금 버전으로 돌려, 같은 서명으로 틀리는 것(목표)과 정상인 것만 남긴다.
+    필수 · 정책 케이스는 사람이 만든 고정 세트에서 넣는다."""
+    from . import testgen, testset
+    pool = set(testgen.generate(finding or {}, seed=seed, kinds_map=KINDS, log=log))
+    es = testset.select(pool, target_ref=None, finding=finding, kinds_map=KINDS,
                         usage=testset.usage_map(db()), seed=seed, n_target=n_target, n_guard=n_guard,
                         n_probe=n_probe, runner=runner, log=log)
     build_eval_set.last_stats = es.pop("_stats", None)
@@ -501,8 +526,9 @@ def _stale_evidence(finding) -> list[str]:
     """증거 실행이 쓴 자산 중, finding 대상 자산이나 그 대상이 의존하는 SKILL·persona가 이후 교체됐는가.
     무관한 자산의 교체로 열린 케이스를 닫지 않는다."""
     from . import tracing
-    ids = {e["run_id"] for e in finding.get("evidence", [])}
-    tgt = (finding["target"].get("asset_ref") or "").split("@")[0]
+    from .analyzer import failing_runs
+    ids = {e["run_id"] for e in failing_runs(finding)}
+    tgt = (finding.get("asset_ref") or "").split("@")[0]
     if not tgt:
         return []
     watch = {tgt}
@@ -606,7 +632,7 @@ def step(cid: str, k: int = 3, log=print) -> str:
             return "REJECTED"
         h = case["body"]["hypothesis"]
         from . import testset
-        if testset.status(c, h["test_set"]["id"]) != "frozen":     # 고정 뒤 노출로 무효 → 다시 고정
+        if testset.status(c, h["test_set"]["id"]) != "frozen":     # 고정 뒤 무효면 다시 고정 (노출 원장 잔재: 루프는 expose를 안 불러 지금은 안 일어남)
             _freeze_set(c, case, h, log, refreeze=True)
         transition(c, case, "EVALUATING", "tester")
         cand = case["body"]["candidate"]["ref"]
@@ -628,6 +654,8 @@ def step(cid: str, k: int = 3, log=print) -> str:
     elif st == "HELD":                                     # 일시적 판정 불가: 같은 세트로 재시도
         n = case["body"].get("held_retries", 0)
         if n >= HELD_RETRIES:
+            if case["body"].get("candidate"):              # 판정 못 한 후보도 남기지 않는다 → rejected
+                registry.set_lifecycle(case["body"]["candidate"]["ref"], "rejected")
             transition(c, case, "REJECTED", "sel_service", {"reason": "HELD 재시도 소진"})
         else:
             case["body"]["held_retries"] = n + 1
@@ -637,6 +665,8 @@ def step(cid: str, k: int = 3, log=print) -> str:
         registry.set_lifecycle(case["body"]["candidate"]["ref"], "candidate")
         transition(c, case, "AWAITING_APPROVAL", "sel_service")
     elif st == "GATE_FAILED":
+        if case["body"].get("candidate"):                  # 평가 미달 → Registry rejected (기준 문서 그림 4)
+            registry.set_lifecycle(case["body"]["candidate"]["ref"], "rejected")
         g = case["body"].pop("gate", None)
         case["body"]["history"].append({"iteration": case["iteration"],
                                         "hypothesis": {k: v for k, v in (case["body"].get("hypothesis") or {}).items() if k != "eval_set"},
@@ -681,6 +711,8 @@ def reject(cid: str, approver: str, reason: str) -> str:
     c = db()
     case = _case(c, cid)
     suppress(c, case["dedupe_key"], f"승인자 반려: {reason}")
+    if case["body"].get("candidate"):                      # 반려 → Registry rejected
+        registry.set_lifecycle(case["body"]["candidate"]["ref"], "rejected")
     transition(c, case, "REJECTED", approver, {"reason": reason})
     return "REJECTED"
 
@@ -690,10 +722,10 @@ def verify(cid: str, after: dict) -> str:
     c = db()
     case = _case(c, cid)
     f = case["body"]["finding"]
-    before = f["metrics"]["rate"]
+    before = f["metrics"]["fail_rate"]
     same = [x for x in after["findings"] + after["below_threshold"]
-            if x["signal"] == f["signal"] and x["dedupe_key"] == f["dedupe_key"]]
-    after_rate = max((x["metrics"]["rate"] for x in same), default=0.0)
+            if x["pattern"] == f["pattern"] and x["dedupe_key"] == f["dedupe_key"]]
+    after_rate = max((x["metrics"]["fail_rate"] for x in same), default=0.0)
     ok = after_rate <= max(before / 2, 0.02)
     case["body"]["verification"] = {"rate_before": before, "rate_after": after_rate}
     transition(c, case, "VERIFIED" if ok else "REGRESSED", "verifier", case["body"]["verification"])
